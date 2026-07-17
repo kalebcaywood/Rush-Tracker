@@ -1,0 +1,9 @@
+# Pin an explicit light theme so text stays readable even when the viewer's
+# device is in dark mode (otherwise Streamlit picks white text over our
+# light background). UT colors.
+[theme]
+base = "light"
+primaryColor = "#FF8200"
+backgroundColor = "#F7F7F5"
+secondaryBackgroundColor = "#ECECEA"
+textColor = "#1A1A1A"
