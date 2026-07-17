@@ -55,19 +55,32 @@ def render() -> None:
 
     with upload_col:
         st.markdown("#### Add today's photo")
-        files = st.file_uploader(
-            "Upload photo(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True,
-            key=f"upload_{pnm_id}",
-        )
-        if files and st.button("Save photo(s)", key=f"save_{pnm_id}"):
-            for f in files:
+        upload_tab, camera_tab = st.tabs(["📁 Upload", "📷 Camera"])
+        with upload_tab:
+            files = st.file_uploader(
+                "Upload photo(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True,
+                key=f"upload_{pnm_id}",
+            )
+            if files and st.button("Save photo(s)", key=f"save_{pnm_id}"):
+                for f in files:
+                    db.upload_photo(
+                        pnm_id, f.getvalue(), f.name, f.type or "image/jpeg",
+                        uploaded_by=member["id"], day=date.today(),
+                    )
+                db.signed_url.clear()
+                st.success(f"Saved {len(files)} photo(s).")
+                st.rerun()
+        with camera_tab:
+            shot = st.camera_input("Take a photo", key=f"camera_{pnm_id}")
+            if shot is not None and st.button("Save this photo", key=f"savecam_{pnm_id}"):
                 db.upload_photo(
-                    pnm_id, f.getvalue(), f.name, f.type or "image/jpeg",
+                    pnm_id, shot.getvalue(),
+                    f"camera_{date.today().isoformat()}.jpg", "image/jpeg",
                     uploaded_by=member["id"], day=date.today(),
                 )
-            db.signed_url.clear()
-            st.success(f"Saved {len(files)} photo(s).")
-            st.rerun()
+                db.signed_url.clear()
+                st.success("Photo saved.")
+                st.rerun()
 
     st.divider()
     st.markdown("#### Photos")

@@ -26,8 +26,10 @@ Go to [supabase.com](https://supabase.com), create a free project, then:
    [`supabase_schema.sql`](supabase_schema.sql) → Run.
 2. Open **Storage** → New bucket → name it exactly `pnm-photos` → leave
    **Public bucket** OFF.
-3. Open **Settings → API** and copy the **Project URL** and the
-   **service_role** secret key (not the `anon` key).
+3. Open **Settings → API Keys** and copy the **secret key**
+   (`sb_secret_...` — click the copy icon; not the publishable key).
+   Your Project URL is `https://<project-ref>.supabase.co`, shown under
+   **Settings → Data API**.
 
 ### 2. Configure secrets
 
@@ -54,6 +56,22 @@ The first person to open the app creates the initial admin account
    local `secrets.toml`.
 4. Share the resulting `*.streamlit.app` URL with the chapter — works from
    any phone browser, no install needed.
+
+## Putting it on everyone's phone
+
+Once deployed, the app runs in any phone browser — but each brother can also
+install it as a home-screen app so it opens full-screen with its own icon:
+
+- **iPhone (Safari):** open the app URL → tap the Share button →
+  **Add to Home Screen** → Add.
+- **Android (Chrome):** open the app URL → tap the ⋮ menu →
+  **Add to Home screen** (or "Install app") → Add.
+
+The **Admin → Share with the chapter** section generates a QR code for the
+app URL — post it at the house or drop it in the GroupMe so everyone can
+scan, log in, and install in under a minute. The camera tab on each PNM's
+profile uses the phone's camera directly, so snapping daily photos at
+events is one tap.
 
 ## Notes
 

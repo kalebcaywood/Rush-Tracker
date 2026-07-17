@@ -52,6 +52,27 @@ def render() -> None:
             st.rerun()
 
     st.divider()
+    st.markdown("#### Share with the chapter")
+    st.caption(
+        "Paste the app's URL (your *.streamlit.app link once deployed) to get a "
+        "QR code you can screenshot, print, or drop in the GroupMe. Brothers "
+        "scan it, log in, then use their phone's 'Add to Home Screen' to keep "
+        "it as an app icon."
+    )
+    app_url = st.text_input("App URL", placeholder="https://your-app.streamlit.app")
+    if app_url.strip():
+        import io
+
+        import qrcode
+
+        img = qrcode.make(app_url.strip())
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        c1, _ = st.columns([1, 2])
+        c1.image(buf.getvalue(), caption=app_url.strip())
+        st.download_button("Download QR code", buf.getvalue(), file_name="rush_tracker_qr.png")
+
+    st.divider()
     st.markdown("#### Backup")
     st.caption("Download every table as CSV — a manual safety net alongside Supabase.")
     if st.button("Export all data"):

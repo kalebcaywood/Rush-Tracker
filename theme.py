@@ -31,6 +31,17 @@ h1, h2, h3 {{ color: {UT_DARK}; }}
     display: inline-block; background: {UT_ORANGE}; color: white;
     border-radius: 6px; padding: 2px 8px; font-weight: 600; font-size: 0.9em;
 }}
+/* Phone layout: let Streamlit columns wrap instead of squeezing.
+   Board cards go 2-up on phones; paired form fields stack full-width. */
+@media (max-width: 640px) {{
+    [data-testid="stHorizontalBlock"] {{ flex-wrap: wrap; }}
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+        min-width: calc(50% - 0.5rem); flex: 1 1 calc(50% - 0.5rem);
+    }}
+    .block-container {{ padding-left: 1rem; padding-right: 1rem; padding-top: 2.5rem; }}
+    h1 {{ font-size: 1.5rem; }}
+    h2 {{ font-size: 1.25rem; }}
+}}
 </style>
 """,
         unsafe_allow_html=True,
