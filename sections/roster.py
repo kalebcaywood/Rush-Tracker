@@ -1,0 +1,83 @@
+"""Upload/preview/import a PNM roster from Excel; manual add-PNM form."""
+from __future__ import annotations
+
+import streamlit as st
+
+import db
+import excel_import
+from sections.profile import PNM_ID_KEY
+
+
+def render() -> None:
+    st.markdown("## Roster / Import")
+
+    st.markdown("#### Import from Excel")
+    st.caption(
+        "Upload a .xlsx roster. Column headers can be anything reasonable "
+        "(Name/Full Name, Year/Class, Major, Hometown, High School, Notes) "
+        "— re-uploading the same sheet updates existing PNMs by name instead "
+        "of duplicating them."
+    )
+    file = st.file_uploader("Roster file", type=["xlsx"])
+    if file:
+        try:
+            raw_df = excel_import.read_excel_bytes(file.getvalue())
+        except Exception as e:
+            st.error(f"Couldn't read that file: {e}")
+            return
+
+        parsed, error = excel_import.parse_roster(raw_df)
+        if error:
+            st.error(error)
+            return
+
+        st.success(f"Found {len(parsed)} PNM(s) in the sheet. Preview below.")
+        st.dataframe(parsed.drop(columns=["full_name_norm"]), use_container_width=True)
+
+        if st.button("Import into Rush Tracker", type="primary"):
+            rows = parsed.to_dict(orient="records")
+            n = db.upsert_pnms(rows)
+            st.success(f"Imported {n} PNM(s).")
+            st.rerun()
+
+    st.divider()
+    st.markdown("#### Add a PNM manually")
+    with st.form("manual_add_pnm", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        full_name = c1.text_input("Full name")
+        year = c2.text_input("Year")
+        c3, c4 = st.columns(2)
+        major = c3.text_input("Major")
+        hometown = c4.text_input("Hometown")
+        high_school = st.text_input("High school")
+        notes = st.text_area("Notes")
+        submitted = st.form_submit_button("Add PNM", type="primary")
+    if submitted:
+        if not full_name.strip():
+            st.error("Name is required.")
+        else:
+            db.upsert_pnms([{
+                "full_name": full_name.strip(),
+                "full_name_norm": full_name.strip().lower(),
+                "year": year or None,
+                "major": major or None,
+                "hometown": hometown or None,
+                "high_school": high_school or None,
+                "notes": notes or None,
+                "extra": {},
+            }])
+            st.success(f"Added {full_name}.")
+            st.rerun()
+
+    st.divider()
+    st.markdown("#### Current roster")
+    pnms = db.list_pnms()
+    if not pnms:
+        st.caption("No PNMs yet.")
+        return
+    for p in pnms:
+        c1, c2 = st.columns([5, 1])
+        c1.write(p["full_name"])
+        if c2.button("View", key=f"roster_view_{p['id']}"):
+            st.session_state[PNM_ID_KEY] = p["id"]
+            st.switch_page(st.session_state["_profile_page"])

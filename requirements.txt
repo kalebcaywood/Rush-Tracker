@@ -1,0 +1,8 @@
+# Floors chosen to match the numpy-2 / Streamlit Cloud (Python 3.13) compatible
+# stack already validated in the Equity Screener app in this user's Downloads.
+streamlit>=1.43,<1.58
+supabase>=2.10
+pandas>=2.2.2
+openpyxl>=3.1
+pillow>=10
+python-dateutil>=2.9
