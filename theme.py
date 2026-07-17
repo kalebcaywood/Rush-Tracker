@@ -48,6 +48,38 @@ h1, h2, h3 {{ color: {UT_DARK}; }}
     )
 
 
+def inject_pwa() -> None:
+    """Add PWA install tags (manifest, apple-touch-icon) to the page head.
+
+    Streamlit can't edit its own <head>, so this runs a zero-height component
+    whose script reaches into the parent document. Makes Android Chrome offer
+    "Install app" and gives iOS Add-to-Home-Screen a real icon.
+    """
+    import streamlit.components.v1 as components
+
+    components.html(
+        """<script>
+const doc = window.parent.document;
+if (!doc.querySelector('link[rel="manifest"]')) {
+    const link = (rel, href) => {
+        const l = doc.createElement('link'); l.rel = rel; l.href = href;
+        doc.head.appendChild(l);
+    };
+    link('manifest', '/app/static/manifest.json');
+    link('apple-touch-icon', '/app/static/apple-touch-icon.png');
+    const meta = (name, content) => {
+        const m = doc.createElement('meta'); m.name = name; m.content = content;
+        doc.head.appendChild(m);
+    };
+    meta('theme-color', '#FF8200');
+    meta('apple-mobile-web-app-capable', 'yes');
+    meta('apple-mobile-web-app-title', 'Rush');
+}
+</script>""",
+        height=0,
+    )
+
+
 def page_header(title: str, subtitle: str | None = None) -> None:
     st.markdown(f"## {title}")
     if subtitle:

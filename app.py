@@ -7,8 +7,9 @@ import auth
 import theme
 from sections import admin, board, leaderboard, profile, roster
 
-st.set_page_config(page_title="Rush Tracker", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="Rush Tracker", page_icon="static/icon-192.png", layout="wide")
 theme.apply_theme()
+theme.inject_pwa()
 
 member = auth.require_login()
 
