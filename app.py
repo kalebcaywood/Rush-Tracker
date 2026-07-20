@@ -5,7 +5,7 @@ import streamlit as st
 
 import auth
 import theme
-from sections import admin, board, leaderboard, profile, roster
+from sections import admin, board, leaderboard, my_activity, profile, roster
 
 st.set_page_config(page_title="Rush Tracker", page_icon="static/icon-192.png", layout="wide")
 theme.apply_theme()
@@ -25,6 +25,7 @@ pages = [
     board_page,
     profile_page,
     st.Page(leaderboard.render, title="Leaderboard", url_path="leaderboard"),
+    st.Page(my_activity.render, title="My Activity", url_path="my-activity"),
 ]
 if auth.is_admin(member):
     pages.append(st.Page(roster.render, title="Roster / Import", url_path="roster"))

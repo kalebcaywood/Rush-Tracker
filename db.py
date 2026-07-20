@@ -263,6 +263,26 @@ def set_comment_flag(comment_id: str, flag: str | None) -> None:
     get_client().table("comments").update({"flag": flag}).eq("id", comment_id).execute()
 
 
+def update_comment(comment_id: str, body: str) -> None:
+    get_client().table("comments").update({"body": body.strip()}).eq(
+        "id", comment_id
+    ).execute()
+
+
+def delete_comment(comment_id: str) -> None:
+    get_client().table("comments").delete().eq("id", comment_id).execute()
+
+
+def list_my_comments(member_id: str) -> list[dict]:
+    return _fetch_all(
+        lambda: get_client()
+        .table("comments")
+        .select("*, pnms(full_name)")
+        .eq("member_id", member_id)
+        .order("created_at", desc=True)
+    )
+
+
 def flag_counts() -> dict[str, dict[str, int]]:
     """pnm_id -> {'red': n, 'green': n} across all flagged comments."""
     try:
@@ -324,6 +344,16 @@ def list_votes(pnm_id: str) -> list[dict]:
         .execute()
     )
     return res.data or []
+
+
+def list_my_votes(member_id: str) -> list[dict]:
+    return _fetch_all(
+        lambda: get_client()
+        .table("votes")
+        .select("*, pnms(id, full_name, status)")
+        .eq("member_id", member_id)
+        .order("updated_at", desc=True)
+    )
 
 
 def my_voted_pnm_ids(member_id: str) -> set[str]:
