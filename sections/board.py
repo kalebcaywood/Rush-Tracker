@@ -12,6 +12,14 @@ PAGE_SIZE = 24
 STATUS_BADGES = {"cut": "❌ Cut", "bid": "🤝 Bid"}
 
 
+def _state_of(p: dict) -> str | None:
+    """State abbreviation from a 'City, ST' hometown."""
+    hometown = p.get("hometown") or ""
+    if "," in hometown:
+        return hometown.rsplit(",", 1)[1].strip().upper() or None
+    return None
+
+
 def render() -> None:
     st.markdown("## Board")
     pnms = db.list_pnms()
@@ -24,13 +32,27 @@ def render() -> None:
     c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
     query = c1.text_input("Search by name", "").strip().lower()
     status_filter = c2.selectbox("Status", ["Active", "All", "Bid", "Cut"])
-    sort_by = c3.selectbox("Sort", ["Name", "Highest score", "Lowest score"])
+    sort_by = c3.selectbox(
+        "Sort", ["Name", "Highest score", "Lowest score", "State (A–Z)", "High school (A–Z)"]
+    )
     only_unvoted = c4.toggle("I haven't voted", help="Only show PNMs you haven't scored yet")
+
+    f1, f2 = st.columns(2)
+    states = sorted({s for s in (_state_of(p) for p in pnms) if s})
+    state_pick = f1.selectbox("State", ["All"] + states)
+    schools = sorted(
+        {p["high_school"] for p in pnms if p.get("high_school")}, key=str.lower
+    )
+    school_pick = f2.selectbox("High school", ["All"] + schools)
 
     if query:
         pnms = [p for p in pnms if query in p["full_name"].lower()]
     if status_filter != "All":
         pnms = [p for p in pnms if p.get("status", "active") == status_filter.lower()]
+    if state_pick != "All":
+        pnms = [p for p in pnms if _state_of(p) == state_pick]
+    if school_pick != "All":
+        pnms = [p for p in pnms if p.get("high_school") == school_pick]
     if only_unvoted:
         voted = db.my_voted_pnm_ids(member["id"])
         pnms = [p for p in pnms if p["id"] not in voted]
@@ -49,6 +71,10 @@ def render() -> None:
         pnms = sorted(pnms, key=lambda p: (avg_of(p) is None, -(avg_of(p) or 0)))
     elif sort_by == "Lowest score":
         pnms = sorted(pnms, key=lambda p: (avg_of(p) is None, avg_of(p) or 0))
+    elif sort_by == "State (A–Z)":
+        pnms = sorted(pnms, key=lambda p: (_state_of(p) is None, _state_of(p) or "", p["full_name"]))
+    elif sort_by == "High school (A–Z)":
+        pnms = sorted(pnms, key=lambda p: (not p.get("high_school"), (p.get("high_school") or "").lower(), p["full_name"]))
 
     if not pnms:
         st.caption("Nothing matches these filters." + (" You've voted on everyone — nice." if only_unvoted else ""))
