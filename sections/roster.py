@@ -75,9 +75,25 @@ def render() -> None:
     if not pnms:
         st.caption("No PNMs yet.")
         return
-    for p in pnms:
-        c1, c2 = st.columns([5, 1])
-        c1.write(p["full_name"])
-        if c2.button("View", key=f"roster_view_{p['id']}"):
-            st.session_state[PNM_ID_KEY] = p["id"]
-            st.switch_page(st.session_state["_profile_page"])
+    st.caption(
+        f"{len(pnms)} PNMs loaded. Open any PNM from the **Board** page "
+        "(use search to jump straight to a name)."
+    )
+    import pandas as pd
+
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Name": p["full_name"],
+                    "Year": p.get("year"),
+                    "Hometown": p.get("hometown"),
+                    "High school": p.get("high_school"),
+                    "Status": p.get("status", "active").title(),
+                }
+                for p in pnms
+            ]
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )

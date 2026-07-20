@@ -52,6 +52,23 @@ def hash_pin(pin: str) -> str:
     return hashlib.sha256(pin.strip().encode()).hexdigest()
 
 
+def _fetch_all(make_query, page: int = 1000) -> list[dict]:
+    """Fetch every row of a query, paging past PostgREST's 1000-row cap.
+
+    `make_query` is a zero-arg callable returning a fresh query builder, e.g.
+    lambda: get_client().table("pnms").select("*").order("full_name")
+    """
+    out: list[dict] = []
+    start = 0
+    while True:
+        res = make_query().range(start, start + page - 1).execute()
+        batch = res.data or []
+        out.extend(batch)
+        if len(batch) < page:
+            return out
+        start += page
+
+
 # ─── Members ──────────────────────────────────────────────────────────────
 def list_members() -> list[dict]:
     res = get_client().table("members").select("*").order("name").execute()
@@ -93,8 +110,9 @@ def delete_member(member_id: str) -> None:
 
 # ─── PNMs ─────────────────────────────────────────────────────────────────
 def list_pnms() -> list[dict]:
-    res = get_client().table("pnms").select("*").order("full_name").execute()
-    return res.data or []
+    return _fetch_all(
+        lambda: get_client().table("pnms").select("*").order("full_name")
+    )
 
 
 def get_pnm(pnm_id: str) -> dict | None:
@@ -131,13 +149,26 @@ def upsert_pnms(rows: list[dict]) -> int:
     """
     if not rows:
         return 0
-    res = (
-        get_client()
-        .table("pnms")
-        .upsert(rows, on_conflict="full_name_norm")
-        .execute()
-    )
-    return len(res.data or [])
+
+    def _de_nan(v):
+        return None if isinstance(v, float) and v != v else v
+
+    # full_name_norm is a generated column — Postgres computes it and rejects
+    # inserts that supply it (it still works as the upsert conflict target).
+    rows = [
+        {k: _de_nan(v) for k, v in r.items() if k != "full_name_norm"} for r in rows
+    ]
+    written = 0
+    for i in range(0, len(rows), 500):  # chunk so big rosters don't hit payload limits
+        chunk = rows[i : i + 500]
+        res = (
+            get_client()
+            .table("pnms")
+            .upsert(chunk, on_conflict="full_name_norm")
+            .execute()
+        )
+        written += len(res.data or [])
+    return written
 
 
 # ─── Photos ───────────────────────────────────────────────────────────────
@@ -199,6 +230,24 @@ def most_recent_photo(pnm_id: str) -> dict | None:
     return photos[0] if photos else None
 
 
+def latest_photo_map() -> dict[str, str]:
+    """pnm_id -> storage_path of the newest photo, in ONE query.
+
+    The board renders hundreds of cards; per-card photo queries would mean
+    hundreds of round-trips per page load.
+    """
+    rows = _fetch_all(
+        lambda: get_client()
+        .table("pnm_photos")
+        .select("pnm_id, storage_path, created_at")
+        .order("created_at", desc=True)
+    )
+    out: dict[str, str] = {}
+    for r in rows:
+        out.setdefault(r["pnm_id"], r["storage_path"])
+    return out
+
+
 # ─── Comments ─────────────────────────────────────────────────────────────
 def add_comment(
     pnm_id: str, member_id: str, body: str, flag: str | None = None
@@ -217,7 +266,9 @@ def set_comment_flag(comment_id: str, flag: str | None) -> None:
 def flag_counts() -> dict[str, dict[str, int]]:
     """pnm_id -> {'red': n, 'green': n} across all flagged comments."""
     try:
-        rows = get_client().table("comments").select("pnm_id, flag").execute().data or []
+        rows = _fetch_all(
+            lambda: get_client().table("comments").select("pnm_id, flag")
+        )
     except Exception:
         return {}  # flag column not migrated yet — degrade gracefully
     out: dict[str, dict[str, int]] = {}
@@ -276,20 +327,20 @@ def list_votes(pnm_id: str) -> list[dict]:
 
 
 def my_voted_pnm_ids(member_id: str) -> set[str]:
-    res = (
-        get_client().table("votes").select("pnm_id").eq("member_id", member_id).execute()
+    rows = _fetch_all(
+        lambda: get_client().table("votes").select("pnm_id").eq("member_id", member_id)
     )
-    return {r["pnm_id"] for r in (res.data or [])}
+    return {r["pnm_id"] for r in rows}
 
 
 def all_votes() -> list[dict]:
-    res = get_client().table("votes").select("pnm_id, member_id, score").execute()
-    return res.data or []
+    return _fetch_all(
+        lambda: get_client().table("votes").select("pnm_id, member_id, score")
+    )
 
 
-# ─── Aggregates (computed client-side — dataset is small enough) ─────────
+# ─── Aggregates (computed client-side with grouped lookups) ──────────────
 def leaderboard_df() -> pd.DataFrame:
-    client = get_client()
     pnms = list_pnms()
     if not pnms:
         return pd.DataFrame(
@@ -297,34 +348,45 @@ def leaderboard_df() -> pd.DataFrame:
                      "🚩", "✅", "Last Activity"]
         )
 
-    votes = client.table("votes").select("pnm_id, score, updated_at").execute().data or []
-    comments = (
-        client.table("comments").select("pnm_id, created_at").execute().data or []
+    votes = _fetch_all(
+        lambda: get_client().table("votes").select("pnm_id, score, updated_at")
+    )
+    comments = _fetch_all(
+        lambda: get_client().table("comments").select("pnm_id, created_at")
     )
     flags = flag_counts()
 
     votes_df = pd.DataFrame(votes)
     comments_df = pd.DataFrame(comments)
 
+    if not votes_df.empty:
+        vg = votes_df.groupby("pnm_id")["score"]
+        avg = vg.mean().round(2).to_dict()
+        vcount = vg.count().to_dict()
+        vlast = votes_df.groupby("pnm_id")["updated_at"].max().to_dict()
+    else:
+        avg, vcount, vlast = {}, {}, {}
+    if not comments_df.empty:
+        cg = comments_df.groupby("pnm_id")
+        ccount = cg.size().to_dict()
+        clast = cg["created_at"].max().to_dict()
+    else:
+        ccount, clast = {}, {}
+
     rows = []
     for p in pnms:
-        pv = votes_df[votes_df["pnm_id"] == p["id"]] if not votes_df.empty else votes_df
-        pc = (
-            comments_df[comments_df["pnm_id"] == p["id"]]
-            if not comments_df.empty
-            else comments_df
+        pid = p["id"]
+        last_activity = max(
+            [t for t in [vlast.get(pid), clast.get(pid)] if t], default=None
         )
-        last_vote = pv["updated_at"].max() if not pv.empty else None
-        last_comment = pc["created_at"].max() if not pc.empty else None
-        last_activity = max([t for t in [last_vote, last_comment] if t], default=None)
-        pf = flags.get(p["id"], {})
+        pf = flags.get(pid, {})
         rows.append(
             {
                 "PNM": p["full_name"],
                 "Status": p.get("status", "active").title(),
-                "Avg Score": round(pv["score"].mean(), 2) if not pv.empty else None,
-                "# Votes": len(pv),
-                "# Comments": len(pc),
+                "Avg Score": avg.get(pid),
+                "# Votes": vcount.get(pid, 0),
+                "# Comments": ccount.get(pid, 0),
                 "🚩": pf.get("red", 0),
                 "✅": pf.get("green", 0),
                 "Last Activity": last_activity,

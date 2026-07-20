@@ -45,7 +45,15 @@ def render() -> None:
     st.divider()
     st.markdown("#### PNMs")
     status_labels = {"active": "Active", "cut": "❌ Cut", "bid": "🤝 Bid"}
-    for p in db.list_pnms():
+    all_pnms = db.list_pnms()
+    pnm_query = st.text_input(
+        "Find a PNM", placeholder="Type a name to manage status / delete",
+    ).strip().lower()
+    matches = [p for p in all_pnms if pnm_query in p["full_name"].lower()] if pnm_query else all_pnms
+    if len(matches) > 50:
+        st.caption(f"{len(matches)} PNMs — showing the first 50, search to narrow down.")
+        matches = matches[:50]
+    for p in matches:
         c1, c2, c3 = st.columns([4, 2, 1])
         c1.write(p["full_name"])
         current = p.get("status", "active")

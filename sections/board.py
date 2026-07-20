@@ -7,6 +7,7 @@ import db
 from sections.profile import PNM_ID_KEY
 
 CARD_COLS = 4
+PAGE_SIZE = 24
 
 STATUS_BADGES = {"cut": "❌ Cut", "bid": "🤝 Bid"}
 
@@ -53,13 +54,28 @@ def render() -> None:
         st.caption("Nothing matches these filters." + (" You've voted on everyone — nice." if only_unvoted else ""))
         return
 
+    n_pages = (len(pnms) + PAGE_SIZE - 1) // PAGE_SIZE
+    if n_pages > 1:
+        pc1, pc2 = st.columns([1, 3])
+        page = pc1.number_input("Page", min_value=1, max_value=n_pages, value=1)
+        start = (page - 1) * PAGE_SIZE
+        shown = pnms[start : start + PAGE_SIZE]
+        pc2.caption(
+            f"Showing {start + 1}–{start + len(shown)} of {len(pnms)} PNMs "
+            f"(page {page} of {n_pages})"
+        )
+    else:
+        shown = pnms
+
+    photo_map = db.latest_photo_map()
+
     cols = st.columns(CARD_COLS)
-    for i, p in enumerate(pnms):
+    for i, p in enumerate(shown):
         with cols[i % CARD_COLS]:
             with st.container(border=True):
-                photo = db.most_recent_photo(p["id"])
-                if photo:
-                    url = db.signed_url(photo["storage_path"])
+                storage_path = photo_map.get(p["id"])
+                if storage_path:
+                    url = db.signed_url(storage_path)
                     if url:
                         st.image(url, use_container_width=True)
                 name_line = f"**{p['full_name']}**"

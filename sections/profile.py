@@ -45,15 +45,39 @@ def render() -> None:
                 db.set_pnm_status(pnm_id, new_status)
                 st.rerun()
 
-    meta_bits = [b for b in [pnm.get("year"), pnm.get("major"), pnm.get("hometown"), pnm.get("high_school")] if b]
-    if meta_bits:
-        st.caption(" · ".join(meta_bits))
-    if pnm.get("notes"):
-        st.write(pnm["notes"])
-    if pnm.get("extra"):
-        with st.expander("More info from roster"):
-            for k, v in pnm["extra"].items():
-                st.write(f"**{k}:** {v}")
+    photo_col, info_col = st.columns([1, 2])
+    with photo_col:
+        latest = db.most_recent_photo(pnm_id)
+        url = db.signed_url(latest["storage_path"]) if latest else None
+        if url:
+            st.image(url, use_container_width=True)
+            if latest.get("day"):
+                st.caption(f"Latest photo · {latest['day']}")
+        else:
+            st.markdown(
+                '<div style="border: 2px dashed #ccc; border-radius: 10px; '
+                'padding: 48px 12px; text-align: center; color: #888;">'
+                "📷<br>No photo yet<br>"
+                '<span style="font-size: 0.8em;">add one below</span></div>',
+                unsafe_allow_html=True,
+            )
+    with info_col:
+        fields = [
+            ("Year", pnm.get("year")),
+            ("Hometown", pnm.get("hometown")),
+            ("High school", pnm.get("high_school")),
+        ]
+        # Everything else the roster sheet had (RC group, IDs, socials, …).
+        for k, v in (pnm.get("extra") or {}).items():
+            fields.append((k, v))
+        for label, value in fields:
+            if value:
+                st.markdown(f"**{label}:** {value}")
+        if pnm.get("major"):
+            st.markdown(f"**Major:** {pnm['major']}")
+        if pnm.get("notes"):
+            st.markdown("**Involvement / notes:**")
+            st.write(pnm["notes"])
 
     st.divider()
 
