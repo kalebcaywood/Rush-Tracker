@@ -30,6 +30,29 @@ def render() -> None:
         )
         return
 
+    with st.expander("Download as PowerPoint"):
+        st.caption(
+            "Builds a .pptx of this day's slideshow — title slide, round "
+            "dividers, one slide per PNM with their latest photo — for "
+            "presenting from the projector machine."
+        )
+        if st.button(f"Build Day {day} deck ({len(pnms)} PNMs)"):
+            import deck_export
+
+            with st.spinner("Building deck (fetching photos)…"):
+                deck = deck_export.build_deck(day)
+            if deck:
+                st.session_state["deck_bytes"] = deck
+                st.session_state["deck_day"] = day
+        if st.session_state.get("deck_bytes") and st.session_state.get("deck_day") == day:
+            st.download_button(
+                "Download deck",
+                st.session_state["deck_bytes"],
+                file_name=f"rush_day{day}_slideshow.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                type="primary",
+            )
+
     rounds = sorted({p.get("_round", 1) for p in pnms})
     round_pick = "All rounds"
     if len(rounds) > 1:
