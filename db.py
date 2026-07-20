@@ -285,6 +285,44 @@ def latest_photo_map() -> dict[str, str]:
     return out
 
 
+# ─── Daily attendance (who came back, in sheet order) ────────────────────
+def set_attendance(day: int, ordered_pnm_ids: list[str]) -> int:
+    """Replace day's attendance with this ordered list. Returns rows written."""
+    client = get_client()
+    client.table("attendance").delete().eq("day", day).execute()
+    rows = [
+        {"pnm_id": pid, "day": day, "position": i}
+        for i, pid in enumerate(ordered_pnm_ids)
+    ]
+    for i in range(0, len(rows), 500):
+        client.table("attendance").insert(rows[i : i + 500]).execute()
+    return len(rows)
+
+
+def attendance_pnm_ids(day: int) -> list[str]:
+    """Ordered pnm_ids for the day's attendance; [] if none uploaded."""
+    try:
+        rows = _fetch_all(
+            lambda: get_client()
+            .table("attendance")
+            .select("pnm_id, position")
+            .eq("day", day)
+            .order("position")
+        )
+    except Exception:
+        return []  # attendance table not migrated yet — degrade gracefully
+    return [r["pnm_id"] for r in rows]
+
+
+def attendance_for_day(day: int) -> list[dict]:
+    """The day's attendees as full PNM dicts, in slideshow order."""
+    order = attendance_pnm_ids(day)
+    if not order:
+        return []
+    by_id = {p["id"]: p for p in list_pnms()}
+    return [by_id[i] for i in order if i in by_id]
+
+
 # ─── Comments ─────────────────────────────────────────────────────────────
 def add_comment(
     pnm_id: str, member_id: str, body: str, flag: str | None = None

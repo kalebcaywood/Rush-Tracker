@@ -35,11 +35,25 @@ def render() -> None:
         st.info("No active PNMs to vote on.")
         return
 
+    # If today's attendance sheet is uploaded, vote only on who came back —
+    # in the same order the slideshow presents them.
+    attendance_order = db.attendance_pnm_ids(day)
+    if attendance_order:
+        active_by_id = {p["id"]: p for p in active}
+        queue = [active_by_id[i] for i in attendance_order if i in active_by_id]
+        scope = f"today's {len(queue)} returning PNMs, in slideshow order"
+    else:
+        queue = active
+        scope = f"all {len(queue)} active PNMs (no attendance sheet uploaded for today)"
+    if not queue:
+        st.info("None of today's attendees are still active.")
+        return
+
     voted = db.my_voted_pnm_ids(member["id"], day)
-    remaining = [p for p in active if p["id"] not in voted]
-    done = len(active) - len(remaining)
-    st.progress(done / len(active))
-    st.caption(f"You've rated {done} of {len(active)} active PNMs today.")
+    remaining = [p for p in queue if p["id"] not in voted]
+    done = len(queue) - len(remaining)
+    st.progress(done / len(queue))
+    st.caption(f"You've rated {done} of {len(queue)} — {scope}.")
 
     if not remaining:
         st.success(
@@ -48,7 +62,8 @@ def render() -> None:
         )
         return
 
-    # Skipped PNMs drop to the back of the queue for this session.
+    # Skipped PNMs drop to the back of the queue for this session
+    # (stable sort keeps the slideshow order within each group).
     skipped: list[str] = st.session_state.setdefault(SKIP_KEY, [])
     remaining.sort(key=lambda p: p["id"] in skipped)
     p = remaining[0]

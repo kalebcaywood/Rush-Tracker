@@ -67,6 +67,18 @@ create table if not exists votes (
     unique (pnm_id, member_id, day)
 );
 
+-- Who came back each day, in the order of the uploaded sheet (drives the
+-- slideshow and the voting queue).
+create table if not exists attendance (
+    id          uuid primary key default gen_random_uuid(),
+    pnm_id      uuid not null references pnms(id) on delete cascade,
+    day         int not null,
+    position    int not null default 0,
+    created_at  timestamptz not null default now(),
+    unique (pnm_id, day)
+);
+create index if not exists attendance_day_idx on attendance (day);
+
 -- Rush-week state: current_day ('1'..'5') and voting_open ('true'/'false').
 create table if not exists app_settings (
     key   text primary key,

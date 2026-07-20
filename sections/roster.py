@@ -49,6 +49,50 @@ def render() -> None:
             st.rerun()
 
     st.divider()
+    st.markdown("#### Daily attendance (who came back today)")
+    st.caption(
+        "Upload the day's returning-PNM sheet. The order of the sheet becomes "
+        "the slideshow order, and the Voting queue follows the same order — "
+        "brothers only vote on PNMs who actually came through that day."
+    )
+    day = db.current_day()
+    att_day = st.selectbox(
+        "Attendance for", [1, 2, 3, 4, 5],
+        index=day - 1 if 1 <= day <= 5 else 0,
+        format_func=lambda d: db.DAY_LABELS.get(d, f"Day {d}"),
+    )
+    existing = db.attendance_pnm_ids(att_day)
+    if existing:
+        st.caption(f"{len(existing)} PNMs currently marked as attending Day {att_day}. Re-uploading replaces the list.")
+    att_file = st.file_uploader("Day's returning PNMs (.xlsx)", type=["xlsx"], key="att_upload")
+    if att_file:
+        try:
+            att_raw = excel_import.read_excel_bytes(att_file.getvalue())
+        except Exception as e:
+            st.error(f"Couldn't read that file: {e}")
+            att_raw = None
+        if att_raw is not None:
+            att_parsed, att_err = excel_import.parse_roster(att_raw)
+            if att_err:
+                st.error(att_err)
+            else:
+                roster = {p["full_name_norm"]: p for p in db.list_pnms()}
+                matched, unmatched = [], []
+                for _, r in att_parsed.iterrows():
+                    p = roster.get(r["full_name_norm"])
+                    (matched.append(p) if p else unmatched.append(r["full_name"]))
+                st.success(f"Matched {len(matched)} PNMs against the roster.")
+                if unmatched:
+                    with st.expander(f"{len(unmatched)} name(s) not in the roster — they'll be skipped"):
+                        st.write(", ".join(unmatched))
+                if matched and st.button(
+                    f"Save Day {att_day} attendance ({len(matched)} PNMs)", type="primary"
+                ):
+                    n = db.set_attendance(att_day, [p["id"] for p in matched])
+                    st.success(f"Saved: {n} PNMs attending Day {att_day}, in sheet order.")
+                    st.rerun()
+
+    st.divider()
     st.markdown("#### Add a PNM manually")
     with st.form("manual_add_pnm", clear_on_submit=True):
         c1, c2 = st.columns(2)

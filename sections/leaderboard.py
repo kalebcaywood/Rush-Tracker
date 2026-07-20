@@ -25,6 +25,13 @@ def render() -> None:
         st.info("No PNMs yet — import a roster from the **Roster / Import** page.")
         return
 
+    if day is not None:
+        attendees = db.attendance_for_day(day)
+        if attendees:
+            if st.checkbox(f"Only the {len(attendees)} PNMs who came Day {day}", value=True):
+                names = {p["full_name"] for p in attendees}
+                df = df[df["PNM"].isin(names)]
+
     status_filter = st.radio(
         "Show", ["All", "Active", "Bid", "Cut"], horizontal=True,
         label_visibility="collapsed",
