@@ -345,7 +345,7 @@ def leaderboard_df() -> pd.DataFrame:
     if not pnms:
         return pd.DataFrame(
             columns=["PNM", "Status", "Avg Score", "# Votes", "# Comments",
-                     "🚩", "✅", "Last Activity"]
+                     "Red flags", "Green flags", "Last Activity"]
         )
 
     votes = _fetch_all(
@@ -387,8 +387,8 @@ def leaderboard_df() -> pd.DataFrame:
                 "Avg Score": avg.get(pid),
                 "# Votes": vcount.get(pid, 0),
                 "# Comments": ccount.get(pid, 0),
-                "🚩": pf.get("red", 0),
-                "✅": pf.get("green", 0),
+                "Red flags": pf.get("red", 0),
+                "Green flags": pf.get("green", 0),
                 "Last Activity": last_activity,
             }
         )

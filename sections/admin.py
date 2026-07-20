@@ -44,7 +44,7 @@ def render() -> None:
 
     st.divider()
     st.markdown("#### PNMs")
-    status_labels = {"active": "Active", "cut": "❌ Cut", "bid": "🤝 Bid"}
+    status_labels = {"active": "Active", "cut": "Cut", "bid": "Bid"}
     all_pnms = db.list_pnms()
     pnm_query = st.text_input(
         "Find a PNM", placeholder="Type a name to manage status / delete",
@@ -86,7 +86,7 @@ def render() -> None:
 
         st.markdown("**Score distribution** (all votes)")
         dist = votes_df["score"].value_counts().reindex([1, 2, 3, 4, 5], fill_value=0)
-        dist.index = [f"{s} ★" for s in dist.index]
+        dist.index = [f"{s} star{'s' if s != 1 else ''}" for s in dist.index]
         st.bar_chart(dist)
 
         st.markdown("**Most divisive PNMs** (highest vote spread, 2+ votes)")

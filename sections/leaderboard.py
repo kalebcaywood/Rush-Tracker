@@ -4,6 +4,7 @@ from __future__ import annotations
 import streamlit as st
 
 import db
+from sections.profile import PNM_ID_KEY
 
 
 def render() -> None:
@@ -17,19 +18,34 @@ def render() -> None:
         "Show", ["All", "Active", "Bid", "Cut"], horizontal=True,
         label_visibility="collapsed",
     )
-    view = df if status_filter == "All" else df[df["Status"] == status_filter]
-    st.dataframe(view, use_container_width=True, hide_index=True)
+    view = (df if status_filter == "All" else df[df["Status"] == status_filter]).reset_index(drop=True)
+    st.caption("Select a row to open that PNM's profile.")
+    event = st.dataframe(
+        view,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="leaderboard_table",
+    )
+    selected = event.selection.rows if event and event.selection else []
+    if selected:
+        name = view.iloc[selected[0]]["PNM"]
+        pnm = next((p for p in db.list_pnms() if p["full_name"] == name), None)
+        if pnm:
+            st.session_state[PNM_ID_KEY] = pnm["id"]
+            st.switch_page(st.session_state["_profile_page"])
 
     c1, c2 = st.columns(2)
     c1.download_button(
-        "⬇ Full leaderboard (CSV)",
+        "Download full leaderboard (CSV)",
         df.to_csv(index=False).encode("utf-8"),
         file_name="leaderboard.csv",
         use_container_width=True,
     )
     bids = df[df["Status"] == "Bid"]
     c2.download_button(
-        f"⬇ Bid list ({len(bids)} PNMs)",
+        f"Download bid list ({len(bids)} PNMs)",
         bids.to_csv(index=False).encode("utf-8"),
         file_name="bid_list.csv",
         disabled=bids.empty,

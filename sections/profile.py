@@ -10,8 +10,8 @@ import db
 
 PNM_ID_KEY = "selected_pnm_id"
 
-FLAG_ICONS = {"red": "🚩", "green": "✅"}
-STATUS_LABELS = {"active": "Active", "cut": "❌ Cut", "bid": "🤝 Bid"}
+FLAG_LABELS = {"red": "RED FLAG", "green": "GREEN FLAG"}
+STATUS_LABELS = {"active": "Active", "cut": "Cut", "bid": "Bid"}
 
 
 def render() -> None:
@@ -57,7 +57,7 @@ def render() -> None:
             st.markdown(
                 '<div style="border: 2px dashed #ccc; border-radius: 10px; '
                 'padding: 48px 12px; text-align: center; color: #888;">'
-                "📷<br>No photo yet<br>"
+                "No photo yet<br>"
                 '<span style="font-size: 0.8em;">add one below</span></div>',
                 unsafe_allow_html=True,
             )
@@ -96,11 +96,11 @@ def render() -> None:
         votes = db.list_votes(pnm_id)
         if votes:
             avg = sum(v["score"] for v in votes) / len(votes)
-            st.caption(f"Average: {avg:.2f} ★ from {len(votes)} vote(s)")
+            st.caption(f"Average: {avg:.2f} / 5 from {len(votes)} vote(s)")
 
     with upload_col:
         st.markdown("#### Add today's photo")
-        upload_tab, camera_tab = st.tabs(["📁 Upload", "📷 Camera"])
+        upload_tab, camera_tab = st.tabs(["Upload", "Camera"])
         with upload_tab:
             files = st.file_uploader(
                 "Upload photo(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True,
@@ -151,32 +151,35 @@ def render() -> None:
         body = st.text_area("Add a comment", label_visibility="collapsed")
         flag_choice = st.radio(
             "Tag it",
-            ["No flag", "🚩 Red flag", "✅ Green flag"],
+            ["No flag", "Red flag", "Green flag"],
             horizontal=True,
             help="Red = character concern the chapter should know about. Green = strong endorsement.",
         )
         submitted = st.form_submit_button("Post comment")
     if submitted and body.strip():
-        flag = {"🚩 Red flag": "red", "✅ Green flag": "green"}.get(flag_choice)
+        flag = {"Red flag": "red", "Green flag": "green"}.get(flag_choice)
         db.add_comment(pnm_id, member["id"], body, flag)
         st.rerun()
 
     admin = auth.is_admin(member)
     for c in db.list_comments(pnm_id):
         author = (c.get("members") or {}).get("name", "Unknown")
-        icon = FLAG_ICONS.get(c.get("flag") or "", "")
+        flag_label = FLAG_LABELS.get(c.get("flag") or "")
         text_col, flag_col = st.columns([8, 1])
         with text_col:
-            st.markdown(f"{icon} **{author}** · {c['created_at'][:16].replace('T', ' ')}")
+            header = f"**{author}** · {c['created_at'][:16].replace('T', ' ')}"
+            if flag_label:
+                header = f"`{flag_label}` " + header
+            st.markdown(header)
             st.write(c["body"])
         # The author can re-tag their own comment; admins can moderate any.
         if admin or c["member_id"] == member["id"]:
             with flag_col:
-                with st.popover("⚑"):
-                    if st.button("🚩 Red", key=f"fr_{c['id']}"):
+                with st.popover("Flag"):
+                    if st.button("Red", key=f"fr_{c['id']}"):
                         db.set_comment_flag(c["id"], "red")
                         st.rerun()
-                    if st.button("✅ Green", key=f"fg_{c['id']}"):
+                    if st.button("Green", key=f"fg_{c['id']}"):
                         db.set_comment_flag(c["id"], "green")
                         st.rerun()
                     if st.button("Clear", key=f"fc_{c['id']}"):
@@ -184,5 +187,5 @@ def render() -> None:
                         st.rerun()
         st.markdown("---")
 
-    if st.button("← Back to Board"):
+    if st.button("Back to Board"):
         st.switch_page(st.session_state["_board_page"])

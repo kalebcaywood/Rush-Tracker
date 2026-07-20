@@ -9,7 +9,7 @@ from sections.profile import PNM_ID_KEY
 CARD_COLS = 4
 PAGE_SIZE = 24
 
-STATUS_BADGES = {"cut": "❌ Cut", "bid": "🤝 Bid"}
+STATUS_BADGES = {"cut": "CUT", "bid": "BID"}
 
 
 def _state_of(p: dict) -> str | None:
@@ -114,16 +114,16 @@ def render() -> None:
                     st.caption(" · ".join(meta_bits))
                 avg = avg_of(p)
                 if avg is not None:
-                    st.markdown(f'<span class="score-badge">★ {avg:.2f}</span>', unsafe_allow_html=True)
+                    st.markdown(f'<span class="score-badge">{avg:.2f} / 5</span>', unsafe_allow_html=True)
                 else:
                     st.caption("No votes yet")
                 pf = flags.get(p["id"])
                 if pf:
                     bits = []
                     if pf.get("red"):
-                        bits.append(f"🚩 {pf['red']}")
+                        bits.append(f"{pf['red']} red")
                     if pf.get("green"):
-                        bits.append(f"✅ {pf['green']}")
+                        bits.append(f"{pf['green']} green")
                     st.caption(" · ".join(bits))
                 if st.button("View", key=f"view_{p['id']}", use_container_width=True):
                     st.session_state[PNM_ID_KEY] = p["id"]
