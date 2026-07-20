@@ -9,6 +9,14 @@ from sections.profile import PNM_ID_KEY
 
 
 def render() -> None:
+    # Belt-and-suspenders: navigation only shows this page to admins, but
+    # guard here too in case the URL is hit directly.
+    import auth
+
+    if not auth.is_admin(st.session_state.get("member", {})):
+        st.info("The roster import is admin-only. Ask an exec if something needs updating.")
+        return
+
     st.markdown("## Roster / Import")
 
     st.markdown("#### Import from Excel")

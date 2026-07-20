@@ -25,9 +25,9 @@ pages = [
     board_page,
     profile_page,
     st.Page(leaderboard.render, title="Leaderboard", url_path="leaderboard"),
-    st.Page(roster.render, title="Roster / Import", url_path="roster"),
 ]
 if auth.is_admin(member):
+    pages.append(st.Page(roster.render, title="Roster / Import", url_path="roster"))
     pages.append(st.Page(admin.render, title="Admin", url_path="admin"))
 
 with st.sidebar:
