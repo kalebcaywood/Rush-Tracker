@@ -27,6 +27,7 @@ def render() -> None:
             [
                 {
                     "PNM": (v.get("pnms") or {}).get("full_name", "?"),
+                    "Day": v.get("day", ""),
                     "My score": f"{v['score']} / 5",
                     "Status": ((v.get("pnms") or {}).get("status") or "active").title(),
                     "Last updated": (v.get("updated_at") or "")[:16].replace("T", " "),

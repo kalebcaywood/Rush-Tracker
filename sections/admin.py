@@ -9,6 +9,29 @@ import db
 def render() -> None:
     st.markdown("## Admin")
 
+    st.markdown("#### Rush day & voting")
+    day = db.current_day()
+    voting_open = db.get_setting("voting_open", "false") == "true"
+    c1, c2 = st.columns([3, 1])
+    new_day = c1.selectbox(
+        "Current rush day", [1, 2, 3, 4, 5],
+        index=day - 1 if 1 <= day <= 5 else 0,
+        format_func=lambda d: db.DAY_LABELS.get(d, f"Day {d}"),
+    )
+    new_open = c2.toggle("Voting open", value=voting_open, help="Day 1 never allows voting regardless.")
+    if new_day != day:
+        db.set_setting("current_day", str(new_day))
+        st.rerun()
+    if new_open != voting_open:
+        db.set_setting("voting_open", "true" if new_open else "false")
+        st.rerun()
+    st.caption(
+        "Each day is a separate voting round — brothers rate every active PNM "
+        "again, and the Leaderboard shows that day's scores for cut decisions. "
+        "Advance the day each morning; open/close voting around each round."
+    )
+
+    st.divider()
     st.markdown("#### Brothers")
     with st.form("add_member", clear_on_submit=True):
         c1, c2, c3 = st.columns([2, 2, 1])
@@ -73,9 +96,12 @@ def render() -> None:
 
     st.divider()
     st.markdown("#### Vote analytics")
-    votes = db.all_votes()
+    analytics_day = day if day >= 2 else None
+    if analytics_day:
+        st.caption(f"Showing Day {analytics_day}'s round. Change the rush day above to see other rounds.")
+    votes = db.all_votes(analytics_day)
     if not votes:
-        st.caption("No votes cast yet.")
+        st.caption("No votes cast yet" + (f" for Day {analytics_day}." if analytics_day else "."))
     else:
         import pandas as pd
 

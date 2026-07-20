@@ -86,19 +86,28 @@ def render() -> None:
     vote_col, upload_col = st.columns(2)
 
     with vote_col:
-        st.markdown("#### Your vote")
-        my_vote = db.get_my_vote(pnm_id, member["id"])
-        vote_key = f"vote_{pnm_id}"
-        if my_vote and vote_key not in st.session_state:
-            st.session_state[vote_key] = my_vote["score"] - 1
-        picked = st.feedback("stars", key=vote_key)
-        if picked is not None and picked + 1 != (my_vote["score"] if my_vote else None):
-            db.upsert_vote(pnm_id, member["id"], picked + 1)
-            st.rerun()
-        votes = db.list_votes(pnm_id)
+        day = db.current_day()
+        if day >= 2 and db.is_voting_open():
+            st.markdown(f"#### Your vote — Day {day}")
+            my_vote = db.get_my_vote(pnm_id, member["id"], day)
+            vote_key = f"vote_{day}_{pnm_id}"
+            if my_vote and vote_key not in st.session_state:
+                st.session_state[vote_key] = my_vote["score"] - 1
+            picked = st.feedback("stars", key=vote_key)
+            if picked is not None and picked + 1 != (my_vote["score"] if my_vote else None):
+                db.upsert_vote(pnm_id, member["id"], picked + 1, day)
+                st.rerun()
+        else:
+            st.markdown("#### Voting")
+            st.caption(
+                "Voting is closed right now."
+                if day >= 2
+                else "No voting on Day 1 — voting starts with the first cut round."
+            )
+        votes = db.list_votes(pnm_id, day) if day >= 2 else []
         if votes:
             avg = sum(v["score"] for v in votes) / len(votes)
-            st.caption(f"Average: {avg:.2f} / 5 from {len(votes)} vote(s)")
+            st.caption(f"Day {day} average: {avg:.2f} / 5 from {len(votes)} vote(s)")
 
     with upload_col:
         st.markdown("#### Add today's photo")

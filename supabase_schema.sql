@@ -61,9 +61,20 @@ create table if not exists votes (
     pnm_id      uuid not null references pnms(id) on delete cascade,
     member_id   uuid not null references members(id) on delete cascade,
     score       int not null check (score between 1 and 5),
+    day         int not null default 2,
     created_at  timestamptz not null default now(),
     updated_at  timestamptz not null default now(),
-    unique (pnm_id, member_id)
+    unique (pnm_id, member_id, day)
 );
+
+-- Rush-week state: current_day ('1'..'5') and voting_open ('true'/'false').
+create table if not exists app_settings (
+    key   text primary key,
+    value text not null
+);
+insert into app_settings (key, value) values ('current_day', '1')
+    on conflict (key) do nothing;
+insert into app_settings (key, value) values ('voting_open', 'false')
+    on conflict (key) do nothing;
 
 create index if not exists votes_pnm_id_idx on votes (pnm_id);

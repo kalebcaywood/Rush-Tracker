@@ -10,7 +10,17 @@ from sections.profile import PNM_ID_KEY
 
 def render() -> None:
     st.markdown("## Leaderboard")
-    df = db.leaderboard_df()
+
+    current = db.current_day()
+    day_options: list = ["All days"] + [d for d in range(2, 6) if d <= max(current, 2)]
+    default_idx = day_options.index(current) if current in day_options else 0
+    c1, c2 = st.columns([1, 3])
+    day_pick = c1.selectbox("Scores from", day_options, index=default_idx)
+    day = None if day_pick == "All days" else int(day_pick)
+    if day is not None:
+        c2.caption(db.DAY_LABELS.get(day, ""))
+
+    df = db.leaderboard_df(day)
     if df.empty:
         st.info("No PNMs yet — import a roster from the **Roster / Import** page.")
         return

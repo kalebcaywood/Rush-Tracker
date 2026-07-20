@@ -5,7 +5,7 @@ import streamlit as st
 
 import auth
 import theme
-from sections import admin, board, leaderboard, my_activity, profile, roster
+from sections import admin, board, leaderboard, my_activity, profile, roster, voting
 
 st.set_page_config(page_title="Rush Tracker", page_icon="static/icon-192.png", layout="wide")
 theme.apply_theme()
@@ -23,6 +23,7 @@ st.session_state["_profile_page"] = profile_page
 
 pages = [
     board_page,
+    st.Page(voting.render, title="Voting", url_path="voting"),
     profile_page,
     st.Page(leaderboard.render, title="Leaderboard", url_path="leaderboard"),
     st.Page(my_activity.render, title="My Activity", url_path="my-activity"),

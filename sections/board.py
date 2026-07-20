@@ -53,11 +53,12 @@ def render() -> None:
         pnms = [p for p in pnms if _state_of(p) == state_pick]
     if school_pick != "All":
         pnms = [p for p in pnms if p.get("high_school") == school_pick]
+    day = db.current_day()
     if only_unvoted:
-        voted = db.my_voted_pnm_ids(member["id"])
+        voted = db.my_voted_pnm_ids(member["id"], day if day >= 2 else None)
         pnms = [p for p in pnms if p["id"] not in voted]
 
-    lb = db.leaderboard_df().set_index("PNM")
+    lb = db.leaderboard_df(day if day >= 2 else None).set_index("PNM")
     flags = db.flag_counts()
 
     def avg_of(p: dict):

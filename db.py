@@ -69,6 +69,43 @@ def _fetch_all(make_query, page: int = 1000) -> list[dict]:
         start += page
 
 
+# ─── Rush-week settings ───────────────────────────────────────────────────
+DAY_LABELS = {
+    1: "Day 1 — Meet the PNMs (no voting)",
+    2: "Day 2 — First cuts",
+    3: "Day 3 — Second cuts",
+    4: "Day 4 — Final cuts",
+    5: "Day 5 — Bid decisions",
+}
+
+
+def get_setting(key: str, default: str | None = None) -> str | None:
+    try:
+        res = (
+            get_client().table("app_settings").select("value").eq("key", key).limit(1).execute()
+        )
+        return res.data[0]["value"] if res.data else default
+    except Exception:
+        return default  # app_settings not migrated yet — degrade gracefully
+
+
+def set_setting(key: str, value: str) -> None:
+    get_client().table("app_settings").upsert(
+        {"key": key, "value": str(value)}, on_conflict="key"
+    ).execute()
+
+
+def current_day() -> int:
+    try:
+        return int(get_setting("current_day", "1") or 1)
+    except (TypeError, ValueError):
+        return 1
+
+
+def is_voting_open() -> bool:
+    return get_setting("voting_open", "false") == "true" and current_day() >= 2
+
+
 # ─── Members ──────────────────────────────────────────────────────────────
 def list_members() -> list[dict]:
     res = get_client().table("members").select("*").order("name").execute()
@@ -311,38 +348,42 @@ def list_comments(pnm_id: str) -> list[dict]:
     return res.data or []
 
 
-# ─── Votes ────────────────────────────────────────────────────────────────
-def upsert_vote(pnm_id: str, member_id: str, score: int) -> None:
+# ─── Votes (one per brother per PNM per rush day) ────────────────────────
+def upsert_vote(pnm_id: str, member_id: str, score: int, day: int | None = None) -> None:
     row = {
         "pnm_id": pnm_id,
         "member_id": member_id,
         "score": score,
+        "day": day if day is not None else current_day(),
         "updated_at": pd.Timestamp.utcnow().isoformat(),
     }
-    get_client().table("votes").upsert(row, on_conflict="pnm_id,member_id").execute()
+    get_client().table("votes").upsert(row, on_conflict="pnm_id,member_id,day").execute()
 
 
-def get_my_vote(pnm_id: str, member_id: str) -> dict | None:
-    res = (
+def get_my_vote(pnm_id: str, member_id: str, day: int | None = None) -> dict | None:
+    q = (
         get_client()
         .table("votes")
         .select("*")
         .eq("pnm_id", pnm_id)
         .eq("member_id", member_id)
-        .limit(1)
-        .execute()
     )
+    if day is not None:
+        q = q.eq("day", day)
+    res = q.limit(1).execute()
     return res.data[0] if res.data else None
 
 
-def list_votes(pnm_id: str) -> list[dict]:
-    res = (
+def list_votes(pnm_id: str, day: int | None = None) -> list[dict]:
+    q = (
         get_client()
         .table("votes")
         .select("*, members(name)")
         .eq("pnm_id", pnm_id)
-        .execute()
     )
+    if day is not None:
+        q = q.eq("day", day)
+    res = q.execute()
     return res.data or []
 
 
@@ -356,21 +397,25 @@ def list_my_votes(member_id: str) -> list[dict]:
     )
 
 
-def my_voted_pnm_ids(member_id: str) -> set[str]:
-    rows = _fetch_all(
-        lambda: get_client().table("votes").select("pnm_id").eq("member_id", member_id)
-    )
-    return {r["pnm_id"] for r in rows}
+def my_voted_pnm_ids(member_id: str, day: int | None = None) -> set[str]:
+    def q():
+        base = get_client().table("votes").select("pnm_id").eq("member_id", member_id)
+        return base.eq("day", day) if day is not None else base
+
+    return {r["pnm_id"] for r in _fetch_all(q)}
 
 
-def all_votes() -> list[dict]:
-    return _fetch_all(
-        lambda: get_client().table("votes").select("pnm_id, member_id, score")
-    )
+def all_votes(day: int | None = None) -> list[dict]:
+    def q():
+        base = get_client().table("votes").select("pnm_id, member_id, score, day")
+        return base.eq("day", day) if day is not None else base
+
+    return _fetch_all(q)
 
 
 # ─── Aggregates (computed client-side with grouped lookups) ──────────────
-def leaderboard_df() -> pd.DataFrame:
+def leaderboard_df(day: int | None = None) -> pd.DataFrame:
+    """Ranking table. `day` filters votes to one rush day; None = all days."""
     pnms = list_pnms()
     if not pnms:
         return pd.DataFrame(
@@ -378,9 +423,11 @@ def leaderboard_df() -> pd.DataFrame:
                      "Red flags", "Green flags", "Last Activity"]
         )
 
-    votes = _fetch_all(
-        lambda: get_client().table("votes").select("pnm_id, score, updated_at")
-    )
+    def votes_q():
+        base = get_client().table("votes").select("pnm_id, score, updated_at")
+        return base.eq("day", day) if day is not None else base
+
+    votes = _fetch_all(votes_q)
     comments = _fetch_all(
         lambda: get_client().table("comments").select("pnm_id, created_at")
     )
