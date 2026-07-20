@@ -67,8 +67,10 @@ def render() -> None:
             ("Hometown", pnm.get("hometown")),
             ("High school", pnm.get("high_school")),
         ]
-        # Everything else the roster sheet had (RC group, IDs, socials, …).
+        # Everything else the roster sheet had (RC group, socials, …).
         for k, v in (pnm.get("extra") or {}).items():
+            if "techniphi" in k.lower():
+                continue
             fields.append((k, v))
         for label, value in fields:
             if value:

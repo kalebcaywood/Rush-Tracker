@@ -25,6 +25,8 @@ HOMETOWN_ALIASES = {"hometown", "city", "hometowncity", "from", "permanentaddres
 STATE_ALIASES = {"state", "hometownstate", "permanentaddressstate"}
 HIGH_SCHOOL_ALIASES = {"highschool", "hs", "high_school", "highschoolname"}
 NOTES_ALIASES = {"notes", "comments", "note", "remarks", "involvement", "involvements", "about", "bio"}
+# Columns dropped entirely on import (internal IDs nobody needs in the app).
+IGNORED_ALIASES = {"techniphiid", "techniphi"}
 
 KNOWN_FIELDS: dict[str, set[str]] = {
     "full_name": NAME_ALIASES,
@@ -83,7 +85,10 @@ def parse_roster(df: pd.DataFrame) -> tuple[pd.DataFrame, str | None]:
         )
 
     mapped_source_cols = {c for c in col_map.values() if c}
-    extra_cols = [c for c in columns if c not in mapped_source_cols]
+    extra_cols = [
+        c for c in columns
+        if c not in mapped_source_cols and _norm_colname(c) not in IGNORED_ALIASES
+    ]
 
     rows = []
     for _, r in df.iterrows():
