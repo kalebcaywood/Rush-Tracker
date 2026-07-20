@@ -64,33 +64,80 @@ def render() -> None:
     existing = db.attendance_pnm_ids(att_day)
     if existing:
         st.caption(f"{len(existing)} PNMs currently marked as attending Day {att_day}. Re-uploading replaces the list.")
-    att_file = st.file_uploader("Day's returning PNMs (.xlsx)", type=["xlsx"], key="att_upload")
-    if att_file:
-        try:
-            att_raw = excel_import.read_excel_bytes(att_file.getvalue())
-        except Exception as e:
-            st.error(f"Couldn't read that file: {e}")
-            att_raw = None
-        if att_raw is not None:
-            att_parsed, att_err = excel_import.parse_roster(att_raw)
-            if att_err:
-                st.error(att_err)
-            else:
-                roster = {p["full_name_norm"]: p for p in db.list_pnms()}
-                matched, unmatched = [], []
-                for _, r in att_parsed.iterrows():
-                    p = roster.get(r["full_name_norm"])
-                    (matched.append(p) if p else unmatched.append(r["full_name"]))
-                st.success(f"Matched {len(matched)} PNMs against the roster.")
-                if unmatched:
-                    with st.expander(f"{len(unmatched)} name(s) not in the roster — they'll be skipped"):
-                        st.write(", ".join(unmatched))
-                if matched and st.button(
-                    f"Save Day {att_day} attendance ({len(matched)} PNMs)", type="primary"
-                ):
-                    n = db.set_attendance(att_day, [p["id"] for p in matched])
-                    st.success(f"Saved: {n} PNMs attending Day {att_day}, in sheet order.")
-                    st.rerun()
+    upload_tab, paste_tab = st.tabs(["Upload .xlsx", "Paste names (from the paper sheet)"])
+
+    with upload_tab:
+        att_file = st.file_uploader("Day's returning PNMs (.xlsx)", type=["xlsx"], key="att_upload")
+        if att_file:
+            try:
+                att_raw = excel_import.read_excel_bytes(att_file.getvalue())
+            except Exception as e:
+                st.error(f"Couldn't read that file: {e}")
+                att_raw = None
+            if att_raw is not None:
+                att_parsed, att_err = excel_import.parse_roster(att_raw)
+                if att_err:
+                    st.error(att_err)
+                else:
+                    index = excel_import.build_name_index(db.list_pnms())
+                    matched, unmatched = [], []
+                    for _, r in att_parsed.iterrows():
+                        p = excel_import.match_name(r["full_name"], index)
+                        (matched.append(p) if p else unmatched.append(r["full_name"]))
+                    st.success(f"Matched {len(matched)} PNMs against the roster.")
+                    if unmatched:
+                        with st.expander(f"{len(unmatched)} name(s) not matched — they'll be skipped"):
+                            st.write(", ".join(unmatched))
+                    if matched and st.button(
+                        f"Save Day {att_day} attendance ({len(matched)} PNMs)", type="primary"
+                    ):
+                        n = db.set_attendance(att_day, [p["id"] for p in matched])
+                        st.success(f"Saved: {n} PNMs attending Day {att_day}, in sheet order.")
+                        st.rerun()
+
+    with paste_tab:
+        st.caption(
+            "Type or paste the names from the paper sheet, one per line, in "
+            "order. Start each group with a line like 'Round 2'. Middle names "
+            "aren't needed — 'Aaren Quintavalle' finds 'Aaren Michael Quintavalle'."
+        )
+        pasted = st.text_area(
+            "Names", key="att_paste", height=220,
+            placeholder="Round 1\nAaren Quintavalle\nBrady Smith\n\nRound 2\nCarson Lee",
+            label_visibility="collapsed",
+        )
+        if pasted.strip():
+            import re as _re
+
+            index = excel_import.build_name_index(db.list_pnms())
+            entries, unmatched = [], []
+            rnd = 1
+            for line in pasted.splitlines():
+                s = line.strip().strip(",;")
+                if not s:
+                    continue
+                m = _re.match(r"(?i)^round\s*#?\s*(\d+)\b", s)
+                if m:
+                    rnd = int(m.group(1))
+                    continue
+                p = excel_import.match_name(s, index)
+                (entries.append((p["id"], rnd)) if p else unmatched.append(s))
+            rounds = sorted({r for _, r in entries})
+            st.success(
+                f"Matched {len(entries)} PNMs"
+                + (f" across rounds {', '.join(map(str, rounds))}" if len(rounds) > 1 else "")
+                + "."
+            )
+            if unmatched:
+                with st.expander(f"{len(unmatched)} name(s) not matched — fix spelling or skip"):
+                    st.write(", ".join(unmatched))
+            if entries and st.button(
+                f"Save Day {att_day} attendance ({len(entries)} PNMs)",
+                type="primary", key="save_paste",
+            ):
+                n = db.set_attendance(att_day, entries)
+                st.success(f"Saved: {n} PNMs attending Day {att_day}.")
+                st.rerun()
 
     st.divider()
     st.markdown("#### Add a PNM manually")

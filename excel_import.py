@@ -136,3 +136,38 @@ def _clean(row: pd.Series, col: str | None):
         return None
     val = str(val).strip()
     return val or None
+
+
+# ─── Name matching (attendance sheets vs. roster) ─────────────────────────
+def build_name_index(pnms: list[dict]) -> dict[str, dict]:
+    """Look up roster PNMs by full name OR 'first last' (paper sheets and
+    check-in lists usually drop middle names). Ambiguous keys — two PNMs who
+    share a first+last — are removed so nobody gets mis-matched silently."""
+    idx: dict[str, dict] = {}
+    ambiguous: set[str] = set()
+
+    def add(key: str, p: dict) -> None:
+        if key in idx and idx[key]["id"] != p["id"]:
+            ambiguous.add(key)
+        else:
+            idx[key] = p
+
+    for p in pnms:
+        norm = " ".join((p.get("full_name_norm") or p["full_name"].lower()).split())
+        add(norm, p)
+        toks = norm.split()
+        if len(toks) > 2:
+            add(f"{toks[0]} {toks[-1]}", p)
+    for k in ambiguous:
+        idx.pop(k, None)
+    return idx
+
+
+def match_name(name: str, index: dict[str, dict]) -> dict | None:
+    s = " ".join(name.lower().split())
+    if s in index:
+        return index[s]
+    toks = s.split()
+    if len(toks) >= 2:
+        return index.get(f"{toks[0]} {toks[-1]}")
+    return None

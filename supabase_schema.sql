@@ -73,6 +73,7 @@ create table if not exists attendance (
     id          uuid primary key default gen_random_uuid(),
     pnm_id      uuid not null references pnms(id) on delete cascade,
     day         int not null,
+    round       int not null default 1,
     position    int not null default 0,
     created_at  timestamptz not null default now(),
     unique (pnm_id, day)

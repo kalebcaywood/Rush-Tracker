@@ -30,9 +30,21 @@ def render() -> None:
         )
         return
 
-    # Reset position when switching days.
-    if st.session_state.get(DAY_KEY) != day:
-        st.session_state[DAY_KEY] = day
+    rounds = sorted({p.get("_round", 1) for p in pnms})
+    round_pick = "All rounds"
+    if len(rounds) > 1:
+        round_pick = st.radio(
+            "Round", ["All rounds"] + [f"Round {r}" for r in rounds],
+            horizontal=True, label_visibility="collapsed",
+        )
+        if round_pick != "All rounds":
+            rnd = int(round_pick.split()[-1])
+            pnms = [p for p in pnms if p.get("_round", 1) == rnd]
+
+    # Reset position when switching days or rounds.
+    view_key = f"{day}|{round_pick}"
+    if st.session_state.get(DAY_KEY) != view_key:
+        st.session_state[DAY_KEY] = view_key
         st.session_state[IDX_KEY] = 0
     idx = max(0, min(st.session_state.get(IDX_KEY, 0), len(pnms) - 1))
     p = pnms[idx]
@@ -44,7 +56,11 @@ def render() -> None:
     if nav2.button("Next", disabled=idx >= len(pnms) - 1, use_container_width=True, type="primary"):
         st.session_state[IDX_KEY] = idx + 1
         st.rerun()
-    nav3.markdown(f"**{idx + 1} of {len(pnms)}** — {db.DAY_LABELS.get(day, f'Day {day}')}")
+    slide_round = p.get("_round", 1)
+    nav3.markdown(
+        f"**{idx + 1} of {len(pnms)}** — Round {slide_round} — "
+        f"{db.DAY_LABELS.get(day, f'Day {day}')}"
+    )
     if nav4.button("Restart", use_container_width=True):
         st.session_state[IDX_KEY] = 0
         st.rerun()

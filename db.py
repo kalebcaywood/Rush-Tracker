@@ -285,42 +285,55 @@ def latest_photo_map() -> dict[str, str]:
     return out
 
 
-# ─── Daily attendance (who came back, in sheet order) ────────────────────
-def set_attendance(day: int, ordered_pnm_ids: list[str]) -> int:
-    """Replace day's attendance with this ordered list. Returns rows written."""
+# ─── Daily attendance (who came back, in round + sheet order) ────────────
+def set_attendance(day: int, entries: list) -> int:
+    """Replace day's attendance. `entries` is an ordered list of pnm_ids
+    (all round 1) or (pnm_id, round) tuples. Returns rows written."""
     client = get_client()
     client.table("attendance").delete().eq("day", day).execute()
-    rows = [
-        {"pnm_id": pid, "day": day, "position": i}
-        for i, pid in enumerate(ordered_pnm_ids)
-    ]
+    rows = []
+    for i, e in enumerate(entries):
+        pid, rnd = e if isinstance(e, tuple) else (e, 1)
+        rows.append({"pnm_id": pid, "day": day, "round": rnd, "position": i})
     for i in range(0, len(rows), 500):
         client.table("attendance").insert(rows[i : i + 500]).execute()
     return len(rows)
 
 
-def attendance_pnm_ids(day: int) -> list[str]:
-    """Ordered pnm_ids for the day's attendance; [] if none uploaded."""
+def _attendance_rows(day: int) -> list[dict]:
     try:
-        rows = _fetch_all(
+        return _fetch_all(
             lambda: get_client()
             .table("attendance")
-            .select("pnm_id, position")
+            .select("pnm_id, round, position")
             .eq("day", day)
+            .order("round")
             .order("position")
         )
     except Exception:
         return []  # attendance table not migrated yet — degrade gracefully
-    return [r["pnm_id"] for r in rows]
+
+
+def attendance_pnm_ids(day: int) -> list[str]:
+    """Ordered pnm_ids (round asc, then sheet order); [] if none uploaded."""
+    return [r["pnm_id"] for r in _attendance_rows(day)]
 
 
 def attendance_for_day(day: int) -> list[dict]:
-    """The day's attendees as full PNM dicts, in slideshow order."""
-    order = attendance_pnm_ids(day)
-    if not order:
+    """The day's attendees as full PNM dicts, in round + slideshow order.
+    Each dict gets a '_round' key."""
+    rows = _attendance_rows(day)
+    if not rows:
         return []
     by_id = {p["id"]: p for p in list_pnms()}
-    return [by_id[i] for i in order if i in by_id]
+    out = []
+    for r in rows:
+        p = by_id.get(r["pnm_id"])
+        if p:
+            p = dict(p)
+            p["_round"] = r.get("round", 1)
+            out.append(p)
+    return out
 
 
 # ─── Comments ─────────────────────────────────────────────────────────────
