@@ -33,7 +33,6 @@ if auth.is_admin(member):
 
 with st.sidebar:
     st.markdown(f"**{member['name']}**")
-    st.caption(member["role"])
     if st.button("Log out"):
         auth.logout()
 
