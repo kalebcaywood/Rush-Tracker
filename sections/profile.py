@@ -5,9 +5,13 @@ from datetime import date
 
 import streamlit as st
 
+import auth
 import db
 
 PNM_ID_KEY = "selected_pnm_id"
+
+FLAG_ICONS = {"red": "🚩", "green": "✅"}
+STATUS_LABELS = {"active": "Active", "cut": "❌ Cut", "bid": "🤝 Bid"}
 
 
 def render() -> None:
@@ -23,7 +27,24 @@ def render() -> None:
 
     member = st.session_state["member"]
 
-    st.markdown(f"## {pnm['full_name']}")
+    title_col, status_col = st.columns([4, 1])
+    status = pnm.get("status", "active")
+    with title_col:
+        suffix = f" · {STATUS_LABELS[status]}" if status != "active" else ""
+        st.markdown(f"## {pnm['full_name']}{suffix}")
+    with status_col:
+        if auth.is_admin(member):
+            new_status = st.selectbox(
+                "Status",
+                db.PNM_STATUSES,
+                index=db.PNM_STATUSES.index(status),
+                format_func=lambda s: STATUS_LABELS[s],
+                key=f"status_{pnm_id}",
+            )
+            if new_status != status:
+                db.set_pnm_status(pnm_id, new_status)
+                st.rerun()
+
     meta_bits = [b for b in [pnm.get("year"), pnm.get("major"), pnm.get("hometown"), pnm.get("high_school")] if b]
     if meta_bits:
         st.caption(" · ".join(meta_bits))
@@ -104,15 +125,39 @@ def render() -> None:
     st.markdown("#### Comments")
     with st.form(f"comment_form_{pnm_id}", clear_on_submit=True):
         body = st.text_area("Add a comment", label_visibility="collapsed")
+        flag_choice = st.radio(
+            "Tag it",
+            ["No flag", "🚩 Red flag", "✅ Green flag"],
+            horizontal=True,
+            help="Red = character concern the chapter should know about. Green = strong endorsement.",
+        )
         submitted = st.form_submit_button("Post comment")
     if submitted and body.strip():
-        db.add_comment(pnm_id, member["id"], body)
+        flag = {"🚩 Red flag": "red", "✅ Green flag": "green"}.get(flag_choice)
+        db.add_comment(pnm_id, member["id"], body, flag)
         st.rerun()
 
+    admin = auth.is_admin(member)
     for c in db.list_comments(pnm_id):
         author = (c.get("members") or {}).get("name", "Unknown")
-        st.markdown(f"**{author}** · {c['created_at'][:16].replace('T', ' ')}")
-        st.write(c["body"])
+        icon = FLAG_ICONS.get(c.get("flag") or "", "")
+        text_col, flag_col = st.columns([8, 1])
+        with text_col:
+            st.markdown(f"{icon} **{author}** · {c['created_at'][:16].replace('T', ' ')}")
+            st.write(c["body"])
+        # The author can re-tag their own comment; admins can moderate any.
+        if admin or c["member_id"] == member["id"]:
+            with flag_col:
+                with st.popover("⚑"):
+                    if st.button("🚩 Red", key=f"fr_{c['id']}"):
+                        db.set_comment_flag(c["id"], "red")
+                        st.rerun()
+                    if st.button("✅ Green", key=f"fg_{c['id']}"):
+                        db.set_comment_flag(c["id"], "green")
+                        st.rerun()
+                    if st.button("Clear", key=f"fc_{c['id']}"):
+                        db.set_comment_flag(c["id"], None)
+                        st.rerun()
         st.markdown("---")
 
     if st.button("← Back to Board"):

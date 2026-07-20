@@ -115,6 +115,15 @@ def delete_pnm(pnm_id: str) -> None:
     get_client().table("pnms").delete().eq("id", pnm_id).execute()
 
 
+PNM_STATUSES = ["active", "cut", "bid"]
+
+
+def set_pnm_status(pnm_id: str, status: str) -> None:
+    if status not in PNM_STATUSES:
+        raise ValueError(f"Bad status: {status}")
+    get_client().table("pnms").update({"status": status}).eq("id", pnm_id).execute()
+
+
 def upsert_pnms(rows: list[dict]) -> int:
     """Insert new PNMs / update existing ones, matched by normalized full_name.
 
@@ -191,10 +200,32 @@ def most_recent_photo(pnm_id: str) -> dict | None:
 
 
 # ─── Comments ─────────────────────────────────────────────────────────────
-def add_comment(pnm_id: str, member_id: str, body: str) -> dict:
+def add_comment(
+    pnm_id: str, member_id: str, body: str, flag: str | None = None
+) -> dict:
     row = {"pnm_id": pnm_id, "member_id": member_id, "body": body.strip()}
+    if flag in ("red", "green"):
+        row["flag"] = flag
     res = get_client().table("comments").insert(row).execute()
     return res.data[0]
+
+
+def set_comment_flag(comment_id: str, flag: str | None) -> None:
+    get_client().table("comments").update({"flag": flag}).eq("id", comment_id).execute()
+
+
+def flag_counts() -> dict[str, dict[str, int]]:
+    """pnm_id -> {'red': n, 'green': n} across all flagged comments."""
+    try:
+        rows = get_client().table("comments").select("pnm_id, flag").execute().data or []
+    except Exception:
+        return {}  # flag column not migrated yet — degrade gracefully
+    out: dict[str, dict[str, int]] = {}
+    for r in rows:
+        if r.get("flag") in ("red", "green"):
+            counts = out.setdefault(r["pnm_id"], {"red": 0, "green": 0})
+            counts[r["flag"]] += 1
+    return out
 
 
 def list_comments(pnm_id: str) -> list[dict]:
@@ -244,19 +275,33 @@ def list_votes(pnm_id: str) -> list[dict]:
     return res.data or []
 
 
+def my_voted_pnm_ids(member_id: str) -> set[str]:
+    res = (
+        get_client().table("votes").select("pnm_id").eq("member_id", member_id).execute()
+    )
+    return {r["pnm_id"] for r in (res.data or [])}
+
+
+def all_votes() -> list[dict]:
+    res = get_client().table("votes").select("pnm_id, member_id, score").execute()
+    return res.data or []
+
+
 # ─── Aggregates (computed client-side — dataset is small enough) ─────────
 def leaderboard_df() -> pd.DataFrame:
     client = get_client()
     pnms = list_pnms()
     if not pnms:
         return pd.DataFrame(
-            columns=["PNM", "Avg Score", "# Votes", "# Comments", "Last Activity"]
+            columns=["PNM", "Status", "Avg Score", "# Votes", "# Comments",
+                     "🚩", "✅", "Last Activity"]
         )
 
     votes = client.table("votes").select("pnm_id, score, updated_at").execute().data or []
     comments = (
         client.table("comments").select("pnm_id, created_at").execute().data or []
     )
+    flags = flag_counts()
 
     votes_df = pd.DataFrame(votes)
     comments_df = pd.DataFrame(comments)
@@ -272,12 +317,16 @@ def leaderboard_df() -> pd.DataFrame:
         last_vote = pv["updated_at"].max() if not pv.empty else None
         last_comment = pc["created_at"].max() if not pc.empty else None
         last_activity = max([t for t in [last_vote, last_comment] if t], default=None)
+        pf = flags.get(p["id"], {})
         rows.append(
             {
                 "PNM": p["full_name"],
+                "Status": p.get("status", "active").title(),
                 "Avg Score": round(pv["score"].mean(), 2) if not pv.empty else None,
                 "# Votes": len(pv),
                 "# Comments": len(pc),
+                "🚩": pf.get("red", 0),
+                "✅": pf.get("green", 0),
                 "Last Activity": last_activity,
             }
         )

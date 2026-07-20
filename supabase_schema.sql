@@ -27,6 +27,7 @@ create table if not exists pnms (
     high_school     text,
     notes           text,
     extra           jsonb not null default '{}'::jsonb,
+    status          text not null default 'active' check (status in ('active', 'cut', 'bid')),
     created_at      timestamptz not null default now()
 );
 
@@ -49,6 +50,7 @@ create table if not exists comments (
     pnm_id      uuid not null references pnms(id) on delete cascade,
     member_id   uuid not null references members(id) on delete cascade,
     body        text not null,
+    flag        text check (flag in ('red', 'green')),
     created_at  timestamptz not null default now()
 );
 

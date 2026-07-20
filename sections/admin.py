@@ -44,12 +44,65 @@ def render() -> None:
 
     st.divider()
     st.markdown("#### PNMs")
+    status_labels = {"active": "Active", "cut": "❌ Cut", "bid": "🤝 Bid"}
     for p in db.list_pnms():
-        c1, c2 = st.columns([5, 1])
+        c1, c2, c3 = st.columns([4, 2, 1])
         c1.write(p["full_name"])
-        if c2.button("Delete", key=f"delpnm_{p['id']}"):
+        current = p.get("status", "active")
+        new_status = c2.selectbox(
+            "Status", db.PNM_STATUSES,
+            index=db.PNM_STATUSES.index(current),
+            format_func=lambda s: status_labels[s],
+            key=f"adminstatus_{p['id']}",
+            label_visibility="collapsed",
+        )
+        if new_status != current:
+            db.set_pnm_status(p["id"], new_status)
+            st.rerun()
+        if c3.button("Delete", key=f"delpnm_{p['id']}"):
             db.delete_pnm(p["id"])
             st.rerun()
+
+    st.divider()
+    st.markdown("#### Vote analytics")
+    votes = db.all_votes()
+    if not votes:
+        st.caption("No votes cast yet.")
+    else:
+        import pandas as pd
+
+        votes_df = pd.DataFrame(votes)
+        pnms = db.list_pnms()
+        names = {p["id"]: p["full_name"] for p in pnms}
+        active_count = sum(1 for p in pnms if p.get("status", "active") == "active")
+
+        st.markdown("**Score distribution** (all votes)")
+        dist = votes_df["score"].value_counts().reindex([1, 2, 3, 4, 5], fill_value=0)
+        dist.index = [f"{s} ★" for s in dist.index]
+        st.bar_chart(dist)
+
+        st.markdown("**Most divisive PNMs** (highest vote spread, 2+ votes)")
+        g = votes_df.groupby("pnm_id")["score"]
+        spread = pd.DataFrame(
+            {"Avg": g.mean().round(2), "Spread (std)": g.std().round(2), "# Votes": g.count()}
+        )
+        spread = spread[spread["# Votes"] >= 2].sort_values("Spread (std)", ascending=False)
+        spread.insert(0, "PNM", [names.get(i, "?") for i in spread.index])
+        st.dataframe(spread.head(10), use_container_width=True, hide_index=True)
+
+        st.markdown("**Voting participation** — who still needs to vote")
+        cast = votes_df.groupby("member_id").size()
+        part = pd.DataFrame(
+            [
+                {
+                    "Brother": m["name"],
+                    "Votes cast": int(cast.get(m["id"], 0)),
+                    "Out of (active PNMs)": active_count,
+                }
+                for m in db.list_members()
+            ]
+        ).sort_values("Votes cast")
+        st.dataframe(part, use_container_width=True, hide_index=True)
 
     st.divider()
     st.markdown("#### Share with the chapter")
