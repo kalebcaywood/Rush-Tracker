@@ -122,9 +122,9 @@ def render() -> None:
                 if pf:
                     bits = []
                     if pf.get("red"):
-                        bits.append(f"{pf['red']} red")
+                        bits.append(f":red[{pf['red']} red flag{'s' if pf['red'] != 1 else ''}]")
                     if pf.get("green"):
-                        bits.append(f"{pf['green']} green")
+                        bits.append(f":green[{pf['green']} green]")
                     st.caption(" · ".join(bits))
                 if st.button("View", key=f"view_{p['id']}", use_container_width=True):
                     st.session_state[PNM_ID_KEY] = p["id"]

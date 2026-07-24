@@ -10,7 +10,7 @@ import db
 
 PNM_ID_KEY = "selected_pnm_id"
 
-FLAG_LABELS = {"red": "RED FLAG", "green": "GREEN FLAG"}
+FLAG_LABELS = {"red": ":red[**RED FLAG**]", "green": ":green[**GREEN FLAG**]"}
 STATUS_LABELS = {"active": "Active", "cut": "Cut", "bid": "Bid"}
 
 
@@ -180,7 +180,7 @@ def render() -> None:
         with text_col:
             header = f"**{author}** · {c['created_at'][:16].replace('T', ' ')}"
             if flag_label:
-                header = f"`{flag_label}` " + header
+                header = f"{flag_label} · " + header
             st.markdown(header)
             st.write(c["body"])
         # The author can re-tag their own comment; admins can moderate any.

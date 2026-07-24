@@ -38,8 +38,15 @@ def render() -> None:
     )
     view = (df if status_filter == "All" else df[df["Status"] == status_filter]).reset_index(drop=True)
     st.caption("Select a row to open that PNM's profile.")
+    styled = view.style.map(
+        lambda v: "color: #C00000; font-weight: bold;" if v else "color: #B0B0B0;",
+        subset=["Red flags"],
+    ).map(
+        lambda v: "color: #1A7F37; font-weight: bold;" if v else "color: #B0B0B0;",
+        subset=["Green flags"],
+    )
     event = st.dataframe(
-        view,
+        styled,
         use_container_width=True,
         hide_index=True,
         on_select="rerun",

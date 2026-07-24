@@ -7,7 +7,7 @@ import streamlit as st
 import db
 from sections.profile import PNM_ID_KEY
 
-FLAG_LABELS = {"red": "Red flag", "green": "Green flag"}
+FLAG_LABELS = {"red": ":red[Red flag]", "green": ":green[Green flag]"}
 
 
 def render() -> None:

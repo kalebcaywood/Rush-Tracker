@@ -122,9 +122,9 @@ def render() -> None:
             if flags:
                 bits = []
                 if flags.get("red"):
-                    bits.append(f"{flags['red']} red flag(s)")
+                    bits.append(f":red[**{flags['red']} red flag{'s' if flags['red'] != 1 else ''}**]")
                 if flags.get("green"):
-                    bits.append(f"{flags['green']} green flag(s)")
-                st.markdown(f"**Flags:** {', '.join(bits)}")
+                    bits.append(f":green[**{flags['green']} green flag{'s' if flags['green'] != 1 else ''}**]")
+                st.markdown(" · ".join(bits))
         if p.get("notes"):
             st.caption(p["notes"])
