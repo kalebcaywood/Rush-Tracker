@@ -182,6 +182,11 @@ def set_pnm_status(pnm_id: str, status: str) -> None:
 def upsert_pnms(rows: list[dict]) -> int:
     """Insert new PNMs / update existing ones, matched by normalized full_name.
 
+    Merge semantics: an incoming None never clobbers an existing value, and
+    `extra` dicts are merged key-by-key — IFC exports vary in which columns
+    they include from day to day, so a sheet missing a column must not blank
+    out data an earlier sheet provided.
+
     Returns the number of rows written.
     """
     if not rows:
@@ -195,6 +200,18 @@ def upsert_pnms(rows: list[dict]) -> int:
     rows = [
         {k: _de_nan(v) for k, v in r.items() if k != "full_name_norm"} for r in rows
     ]
+
+    existing = {p["full_name_norm"]: p for p in list_pnms()}
+    for r in rows:
+        prev = existing.get(r["full_name"].strip().lower())
+        if not prev:
+            continue
+        for k, v in list(r.items()):
+            if v is None and prev.get(k) is not None:
+                r[k] = prev[k]
+        merged_extra = dict(prev.get("extra") or {})
+        merged_extra.update(r.get("extra") or {})
+        r["extra"] = merged_extra
     written = 0
     for i in range(0, len(rows), 500):  # chunk so big rosters don't hit payload limits
         chunk = rows[i : i + 500]

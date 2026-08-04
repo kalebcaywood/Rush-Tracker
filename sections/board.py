@@ -4,6 +4,7 @@ from __future__ import annotations
 import streamlit as st
 
 import db
+import states
 from sections.profile import PNM_ID_KEY
 
 CARD_COLS = 4
@@ -13,11 +14,7 @@ STATUS_BADGES = {"cut": "CUT", "bid": "BID"}
 
 
 def _state_of(p: dict) -> str | None:
-    """State abbreviation from a 'City, ST' hometown."""
-    hometown = p.get("hometown") or ""
-    if "," in hometown:
-        return hometown.rsplit(",", 1)[1].strip().upper() or None
-    return None
+    return states.state_code(p.get("hometown"))
 
 
 def render() -> None:
