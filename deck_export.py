@@ -135,21 +135,50 @@ def _add_photo(slide, data: bytes | None):
     run.font.name = "Arial"
 
 
-def build_deck(day: int) -> bytes | None:
-    """Returns .pptx bytes for the day's attendance, or None if none uploaded."""
+def build_deck(day: int, round_times: dict[int, str] | None = None) -> bytes | None:
+    """Returns .pptx bytes for the day's attendance, or None if none uploaded.
+
+    `round_times` maps round number -> time string (e.g. {1: "9:00 am"});
+    when provided, the title slide lists the full round schedule and each
+    divider shows its round's time.
+    """
     pnms = db.attendance_for_day(day)
     if not pnms:
         return None
+    round_times = round_times or {}
 
     prs = Presentation()
     prs.slide_width, prs.slide_height = W, H
 
     s = _blank(prs, DARK)
     _logo(s, LOGO_WHITE, small=False)
-    _text(s, Inches(0.9), Inches(2.4), Inches(11.5), Inches(1.2),
+    _text(s, Inches(0.9), Inches(1.1), Inches(11.5), Inches(1.2),
           "XI DEUTERON RUSH", 54, WHITE, bold=True)
-    _text(s, Inches(0.9), Inches(3.7), Inches(11.5), Inches(0.7),
+    _text(s, Inches(0.9), Inches(2.3), Inches(11.5), Inches(0.7),
           db.DAY_LABELS.get(day, f"Day {day}"), 28, ORANGE, bold=True)
+    if round_times:
+        _text(s, Inches(0.9), Inches(3.3), Inches(11.5), Inches(0.5),
+              "Round schedule", 20, WHITE, bold=True)
+        rounds_sorted = sorted(round_times)
+        half = (len(rounds_sorted) + 1) // 2
+        for col, chunk in enumerate([rounds_sorted[:half], rounds_sorted[half:]]):
+            lines = "\n".join(
+                f"Round {r} — {round_times[r]}" for r in chunk
+            )
+            if lines:
+                box = s.shapes.add_textbox(
+                    Inches(0.9 + col * 5.9), Inches(3.9), Inches(5.6), Inches(3.3)
+                )
+                tf = box.text_frame
+                tf.word_wrap = True
+                tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
+                for i, line in enumerate(lines.split("\n")):
+                    para = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                    run = para.add_run()
+                    run.text = line
+                    run.font.size = Pt(15)
+                    run.font.color.rgb = RGBColor(0xCF, 0xCF, 0xCF)
+                    run.font.name = "Arial"
 
     total = len(pnms)
     seen = 0
@@ -161,10 +190,13 @@ def build_deck(day: int) -> bytes | None:
             count = sum(1 for q in pnms if q.get("_round", 1) == rnd)
             d = _blank(prs, ORANGE)
             _logo(d, LOGO_WHITE)
+            round_title = f"ROUND {rnd}"
+            if round_times.get(rnd):
+                round_title += f" — {round_times[rnd]}"
             _text(d, Inches(0.9), Inches(2.7), Inches(11.5), Inches(1.5),
-                  f"ROUND {rnd}", 72, WHITE, bold=True)
+                  round_title, 60, WHITE, bold=True)
             _text(d, Inches(0.9), Inches(4.3), Inches(11.5), Inches(0.6),
-                  f"{count} PNMs this round", 22, DARK, bold=True)
+                  f"{count} PNM{'s' if count != 1 else ''} this round", 22, DARK, bold=True)
 
         seen += 1
         s = _blank(prs, WHITE)
