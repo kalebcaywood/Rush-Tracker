@@ -7,12 +7,17 @@ UT orange/white/dark styling.
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
 
 import db
+
+ASSETS = Path(__file__).resolve().parent / "static"
+LOGO_WHITE = ASSETS / "psk_letters_white.png"
+LOGO_DARK = ASSETS / "psk_letters_dark.png"
 
 ORANGE = RGBColor(0xFF, 0x82, 0x00)
 SMOKEY = RGBColor(0x58, 0x59, 0x5B)
@@ -67,6 +72,27 @@ def _labeled(slide, x, y, w, label, value, size=18):
     r2.font.name = "Arial"
 
 
+def _logo(slide, variant: Path, small: bool = True) -> None:
+    """Letters in the top-right corner (small) or large centered (title)."""
+    if not variant.exists():
+        return
+    if small:
+        slide.shapes.add_picture(str(variant), Inches(11.53), Inches(0.35),
+                                 width=Inches(1.4))
+    else:
+        slide.shapes.add_picture(str(variant), Inches(9.6), Inches(0.7),
+                                 width=Inches(3.0))
+
+
+def _instagram(p: dict) -> str | None:
+    social = ((p.get("extra") or {}).get("Social Media") or "").strip()
+    # IFC data looks like 'Instagram - @handle' / 'insta: handle' — keep the handle.
+    import re
+
+    social = re.sub(r"(?i)^(instagram|insta|ig)\s*[-:–]?\s*", "", social).strip()
+    return social or None
+
+
 def _photo_bytes(pnm_id: str) -> bytes | None:
     photo = db.most_recent_photo(pnm_id)
     if not photo:
@@ -119,6 +145,7 @@ def build_deck(day: int) -> bytes | None:
     prs.slide_width, prs.slide_height = W, H
 
     s = _blank(prs, DARK)
+    _logo(s, LOGO_WHITE, small=False)
     _text(s, Inches(0.9), Inches(2.4), Inches(11.5), Inches(1.2),
           "XI DEUTERON RUSH", 54, WHITE, bold=True)
     _text(s, Inches(0.9), Inches(3.7), Inches(11.5), Inches(0.7),
@@ -133,6 +160,7 @@ def build_deck(day: int) -> bytes | None:
             current_round = rnd
             count = sum(1 for q in pnms if q.get("_round", 1) == rnd)
             d = _blank(prs, ORANGE)
+            _logo(d, LOGO_WHITE)
             _text(d, Inches(0.9), Inches(2.7), Inches(11.5), Inches(1.5),
                   f"ROUND {rnd}", 72, WHITE, bold=True)
             _text(d, Inches(0.9), Inches(4.3), Inches(11.5), Inches(0.6),
@@ -140,8 +168,9 @@ def build_deck(day: int) -> bytes | None:
 
         seen += 1
         s = _blank(prs, WHITE)
+        _logo(s, LOGO_DARK)
         _add_photo(s, _photo_bytes(p["id"]))
-        _text(s, Inches(5.7), Inches(0.9), Inches(6.9), Inches(1.0),
+        _text(s, Inches(5.7), Inches(0.9), Inches(6.55), Inches(1.0),
               p["full_name"], 36, DARK, bold=True)
         y = 2.1
         for label, value in [
@@ -149,6 +178,7 @@ def build_deck(day: int) -> bytes | None:
             ("Hometown", p.get("hometown")),
             ("High school", p.get("high_school")),
             ("RC Group", (p.get("extra") or {}).get("RC Group")),
+            ("Instagram", _instagram(p)),
         ]:
             if value:
                 _labeled(s, Inches(5.7), Inches(y), Inches(6.9), label, value)
@@ -164,6 +194,7 @@ def build_deck(day: int) -> bytes | None:
               f"{seen} of {total}  ·  Round {rnd}  ·  Day {day}", 12, SMOKEY)
 
     s = _blank(prs, DARK)
+    _logo(s, LOGO_WHITE)
     _text(s, Inches(0.9), Inches(2.3), Inches(11.5), Inches(1.0),
           "Voting is open", 44, WHITE, bold=True)
     _text(s, Inches(0.9), Inches(3.5), Inches(11.0), Inches(1.6),

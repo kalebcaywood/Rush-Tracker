@@ -13,7 +13,9 @@ DAY_KEY = "slideshow_day"
 
 
 def render() -> None:
-    st.markdown("## Slideshow")
+    title_col, logo_col = st.columns([5, 1])
+    title_col.markdown("## Slideshow")
+    logo_col.image("static/psk_letters_orange.png", width=110)
 
     current = db.current_day()
     day = st.selectbox(
@@ -114,6 +116,11 @@ def render() -> None:
             rc = (p.get("extra") or {}).get("RC Group")
             if rc:
                 st.markdown(f"**RC Group:** {rc}")
+            import deck_export
+
+            social = deck_export._instagram(p)
+            if social:
+                st.markdown(f"**Instagram:** {social}")
             day_votes = db.list_votes(p["id"], day)
             if day_votes:
                 avg = sum(v["score"] for v in day_votes) / len(day_votes)
