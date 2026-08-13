@@ -135,14 +135,22 @@ def _add_photo(slide, data: bytes | None):
     run.font.name = "Arial"
 
 
-def build_deck(day: int, round_times: dict[int, str] | None = None) -> bytes | None:
+def build_deck(
+    day: int,
+    round_times: dict[int, str] | None = None,
+    rounds: list[int] | None = None,
+) -> bytes | None:
     """Returns .pptx bytes for the day's attendance, or None if none uploaded.
 
     `round_times` maps round number -> time string (e.g. {1: "9:00 am"});
-    when provided, the title slide lists the full round schedule and each
-    divider shows its round's time.
+    when provided, the title slide lists the round schedule and each divider
+    shows its round's time. `rounds` limits the deck to those rounds only
+    (e.g. [4] for a single-round deck).
     """
     pnms = db.attendance_for_day(day)
+    if rounds is not None:
+        pnms = [p for p in pnms if p.get("_round", 1) in rounds]
+        round_times = {r: t for r, t in (round_times or {}).items() if r in rounds}
     if not pnms:
         return None
     round_times = round_times or {}

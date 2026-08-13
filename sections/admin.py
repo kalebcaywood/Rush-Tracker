@@ -70,9 +70,20 @@ def render() -> None:
     status_labels = {"active": "Active", "cut": "Cut", "bid": "Bid"}
     all_pnms = db.list_pnms()
     pnm_query = st.text_input(
-        "Find a PNM", placeholder="Type a name to manage status / delete",
+        "Find a PNM", placeholder="Name or PNM # — to manage status / delete",
     ).strip().lower()
-    matches = [p for p in all_pnms if pnm_query in p["full_name"].lower()] if pnm_query else all_pnms
+
+    def _cid(p):
+        return str((p.get("extra") or {}).get("Council ID") or "").strip()
+
+    if not pnm_query:
+        matches = all_pnms
+    elif pnm_query.isdigit():
+        matches = [p for p in all_pnms if _cid(p) == pnm_query] or [
+            p for p in all_pnms if _cid(p).startswith(pnm_query)
+        ]
+    else:
+        matches = [p for p in all_pnms if pnm_query in p["full_name"].lower()]
     if len(matches) > 50:
         st.caption(f"{len(matches)} PNMs — showing the first 50, search to narrow down.")
         matches = matches[:50]

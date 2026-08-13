@@ -13,6 +13,11 @@ PAGE_SIZE = 24
 STATUS_BADGES = {"cut": "CUT", "bid": "BID"}
 
 
+def _council(p: dict) -> str:
+    """The IFC council PNM number, as printed on their nametag."""
+    return str((p.get("extra") or {}).get("Council ID") or "").strip()
+
+
 def _state_of(p: dict) -> str | None:
     return states.state_code(p.get("hometown"))
 
@@ -27,7 +32,10 @@ def render() -> None:
     member = st.session_state["member"]
 
     c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
-    query = c1.text_input("Search by name", "").strip().lower()
+    query = c1.text_input(
+        "Search by name or PNM #", "",
+        placeholder="e.g. Quintavalle or 526",
+    ).strip().lower()
     status_filter = c2.selectbox("Status", ["Active", "All", "Bid", "Cut"])
     sort_by = c3.selectbox(
         "Sort", ["Name", "Highest score", "Lowest score", "State (A–Z)", "High school (A–Z)"]
@@ -43,7 +51,13 @@ def render() -> None:
     school_pick = f2.selectbox("High school", ["All"] + schools)
 
     if query:
-        pnms = [p for p in pnms if query in p["full_name"].lower()]
+        # Digits search the council PNM number (exact first, then prefix);
+        # anything else searches the name.
+        if query.isdigit():
+            exact = [p for p in pnms if _council(p) == query]
+            pnms = exact or [p for p in pnms if _council(p).startswith(query)]
+        else:
+            pnms = [p for p in pnms if query in p["full_name"].lower()]
     if status_filter != "All":
         pnms = [p for p in pnms if p.get("status", "active") == status_filter.lower()]
     if state_pick != "All":
@@ -107,6 +121,9 @@ def render() -> None:
                 if badge:
                     name_line += f" · {badge}"
                 st.markdown(name_line)
+                cid = _council(p)
+                if cid:
+                    st.caption(f"PNM #{cid}")
                 meta_bits = [b for b in [p.get("year"), p.get("major")] if b]
                 if meta_bits:
                     st.caption(" · ".join(meta_bits))
