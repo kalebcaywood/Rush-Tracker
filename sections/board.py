@@ -1,6 +1,8 @@
 """Grid of PNM cards — thumbnail, name, live average score, filters."""
 from __future__ import annotations
 
+from collections import Counter
+
 import streamlit as st
 
 import db
@@ -36,7 +38,16 @@ def render() -> None:
         "Search by name or PNM #", "",
         placeholder="e.g. Quintavalle or 526",
     ).strip().lower()
-    status_filter = c2.selectbox("Status", ["Active", "All", "Bid", "Cut"])
+    # Default to the first status that actually has PNMs — once rush ends and
+    # everyone is Bid/Cut, an "Active" default would show an empty board.
+    counts = Counter(p.get("status", "active") for p in pnms)
+    status_opts = ["Active", "All", "Bid", "Cut"]
+    default_status = next(
+        (s for s in ("Active", "Bid", "Cut") if counts.get(s.lower())), "All"
+    )
+    status_filter = c2.selectbox(
+        "Status", status_opts, index=status_opts.index(default_status)
+    )
     sort_by = c3.selectbox(
         "Sort", ["Name", "Highest score", "Lowest score", "State (A–Z)", "High school (A–Z)"]
     )

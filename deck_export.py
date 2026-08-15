@@ -103,6 +103,11 @@ def _photo_bytes(pnm_id: str) -> bytes | None:
         return None
 
 
+# The photo box is ~4.6in wide; at 150 dpi that is ~700px. Embedding the
+# full-size upload instead would make a 800-slide deck hundreds of MB.
+MAX_PX = 700
+
+
 def _add_photo(slide, data: bytes | None):
     x, y, bw, bh = PHOTO_BOX
     if data:
@@ -110,11 +115,15 @@ def _add_photo(slide, data: bytes | None):
             from PIL import Image
 
             img = Image.open(io.BytesIO(data))
+            img.thumbnail((MAX_PX, MAX_PX))
+            buf = io.BytesIO()
+            img.convert("RGB").save(buf, format="JPEG", quality=80, optimize=True)
+            buf.seek(0)
             iw, ih = img.size
             scale = min(bw / iw, bh / ih)
             w, h = int(iw * scale), int(ih * scale)
             slide.shapes.add_picture(
-                io.BytesIO(data),
+                buf,
                 x + int((bw - w) / 2), y + int((bh - h) / 2),
                 width=w, height=h,
             )
