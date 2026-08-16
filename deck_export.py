@@ -148,6 +148,11 @@ def build_deck(
     day: int,
     round_times: dict[int, str] | None = None,
     rounds: list[int] | None = None,
+    pnms_override: list[dict] | None = None,
+    title: str | None = None,
+    subtitle: str | None = None,
+    group_labels: dict | None = None,
+    group_noun: str = "this round",
 ) -> bytes | None:
     """Returns .pptx bytes for the day's attendance, or None if none uploaded.
 
@@ -156,7 +161,7 @@ def build_deck(
     shows its round's time. `rounds` limits the deck to those rounds only
     (e.g. [4] for a single-round deck).
     """
-    pnms = db.attendance_for_day(day)
+    pnms = pnms_override if pnms_override is not None else db.attendance_for_day(day)
     if rounds is not None:
         pnms = [p for p in pnms if p.get("_round", 1) in rounds]
         round_times = {r: t for r, t in (round_times or {}).items() if r in rounds}
@@ -170,9 +175,9 @@ def build_deck(
     s = _blank(prs, DARK)
     _logo(s, LOGO_WHITE, small=False)
     _text(s, Inches(0.9), Inches(1.1), Inches(11.5), Inches(1.2),
-          "XI DEUTERON RUSH", 54, WHITE, bold=True)
+          title or "XI DEUTERON RUSH", 54, WHITE, bold=True)
     _text(s, Inches(0.9), Inches(2.3), Inches(11.5), Inches(0.7),
-          db.DAY_LABELS.get(day, f"Day {day}"), 28, ORANGE, bold=True)
+          subtitle or db.DAY_LABELS.get(day, f"Day {day}"), 28, ORANGE, bold=True)
     if round_times:
         _text(s, Inches(0.9), Inches(3.3), Inches(11.5), Inches(0.5),
               "Round schedule", 20, WHITE, bold=True)
@@ -207,13 +212,19 @@ def build_deck(
             count = sum(1 for q in pnms if q.get("_round", 1) == rnd)
             d = _blank(prs, ORANGE)
             _logo(d, LOGO_WHITE)
-            round_title = f"ROUND {rnd}"
-            if round_times.get(rnd):
-                round_title += f" — {round_times[rnd]}"
+            if group_labels is not None:
+                round_title = str(group_labels.get(rnd, rnd)).upper()
+            else:
+                round_title = f"ROUND {rnd}"
+                if round_times.get(rnd):
+                    round_title += f" — {round_times[rnd]}"
             _text(d, Inches(0.9), Inches(2.7), Inches(11.5), Inches(1.5),
-                  round_title, 60, WHITE, bold=True)
+                  round_title, 60 if len(round_title) < 26 else 44, WHITE, bold=True)
             _text(d, Inches(0.9), Inches(4.3), Inches(11.5), Inches(0.6),
-                  f"{count} PNM{'s' if count != 1 else ''} this round", 22, DARK, bold=True)
+                  f"{count} {'man' if count == 1 else 'men'} {group_noun}"
+                  if group_labels is not None
+                  else f"{count} PNM{'s' if count != 1 else ''} this round",
+                  22, DARK, bold=True)
 
         seen += 1
         s = _blank(prs, WHITE)
@@ -240,7 +251,8 @@ def build_deck(
             _text(s, Inches(5.7), Inches(y + 0.6), Inches(6.9), Inches(1.8),
                   snippet, 13, SMOKEY)
         _text(s, Inches(0.7), Inches(6.85), Inches(11.9), Inches(0.4),
-              f"{seen} of {total}  ·  Round {rnd}  ·  Day {day}", 12, SMOKEY)
+              f"{seen} of {total}  ·  {group_labels[rnd]}" if group_labels is not None
+              else f"{seen} of {total}  ·  Round {rnd}  ·  Day {day}", 12, SMOKEY)
 
     s = _blank(prs, DARK)
     _logo(s, LOGO_WHITE)
